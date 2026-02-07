@@ -1,0 +1,9 @@
+mode: set
+github.com/puregoword/goword/style/font.go:26.30,31.2 1 1
+github.com/puregoword/goword/style/paragraph.go:65.45,70.2 1 1
+github.com/puregoword/goword/style/section.go:36.41,49.2 1 1
+github.com/puregoword/goword/style/section.go:52.50,53.38 1 1
+github.com/puregoword/goword/style/section.go:53.38,54.39 1 1
+github.com/puregoword/goword/style/section.go:54.39,57.4 2 1
+github.com/puregoword/goword/style/section.go:57.9,60.4 2 1
+github.com/puregoword/goword/style/table.go:46.75,54.2 7 1
