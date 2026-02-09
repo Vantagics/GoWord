@@ -1,7 +1,7 @@
 package document
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/VantageDataChat/GoWord/style"
 )
@@ -153,5 +153,5 @@ func (d *Document) allocBookmarkID() int {
 }
 
 func itoa(i int) string {
-	return fmt.Sprintf("%d", i)
+	return strconv.Itoa(i)
 }

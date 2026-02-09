@@ -43,12 +43,13 @@ type CellStyle struct {
 }
 
 // SetAllBorders is a convenience method to set all borders at once.
-func (ts *TableStyle) SetAllBorders(style string, size int, color string) {
-	b := &Border{Style: style, Size: size, Color: color}
-	ts.BorderTop = b
-	ts.BorderBottom = b
-	ts.BorderLeft = b
-	ts.BorderRight = b
-	ts.BorderInsideH = b
-	ts.BorderInsideV = b
+// Each border gets its own copy so mutating one doesn't affect the others.
+func (ts *TableStyle) SetAllBorders(bstyle string, size int, color string) {
+	mk := func() *Border { return &Border{Style: bstyle, Size: size, Color: color} }
+	ts.BorderTop = mk()
+	ts.BorderBottom = mk()
+	ts.BorderLeft = mk()
+	ts.BorderRight = mk()
+	ts.BorderInsideH = mk()
+	ts.BorderInsideV = mk()
 }

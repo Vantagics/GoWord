@@ -1,6 +1,7 @@
 package document
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/VantageDataChat/GoWord/style"
@@ -30,7 +31,7 @@ func TestOpenWithoutRegistration(t *testing.T) {
 	if err == nil {
 		t.Error("expected error from Open without registration")
 	}
-	if err.Error() != errNoReader.Error() {
+	if !errors.Is(err, ErrNoReader) {
 		t.Errorf("error = %q", err.Error())
 	}
 
@@ -44,7 +45,7 @@ func TestOpenWithoutRegistration(t *testing.T) {
 	if err == nil {
 		t.Error("expected error from Save without registration")
 	}
-	if err.Error() != errNoWriter.Error() {
+	if !errors.Is(err, ErrNoWriter) {
 		t.Errorf("error = %q", err.Error())
 	}
 
@@ -68,10 +69,18 @@ func TestRegisterIO(t *testing.T) {
 	}
 }
 
-func TestSimpleErrorMessage(t *testing.T) {
-	e := &simpleError{msg: "test error"}
-	if e.Error() != "test error" {
-		t.Errorf("error = %q", e.Error())
+func TestSentinelErrors(t *testing.T) {
+	if ErrNoReader == nil {
+		t.Error("ErrNoReader is nil")
+	}
+	if ErrNoWriter == nil {
+		t.Error("ErrNoWriter is nil")
+	}
+	if ErrNoReader.Error() == "" {
+		t.Error("ErrNoReader has empty message")
+	}
+	if ErrNoWriter.Error() == "" {
+		t.Error("ErrNoWriter has empty message")
 	}
 }
 
