@@ -2,6 +2,7 @@ package ooxml
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/VantageDataChat/GoWord/document"
@@ -80,14 +81,18 @@ func (w *Writer) writeListItem(b *strings.Builder, li *document.ListItem) {
 	// Determine numId
 	numID := "1" // default bullet
 	if li.ListStyle != "" {
-		// Look up the numbering style index
-		idx := 1
-		for name := range w.doc.NumberingStyles() {
+		// Sort names for deterministic numbering ID lookup (must match writeNumbering order)
+		ns := w.doc.NumberingStyles()
+		names := make([]string, 0, len(ns))
+		for name := range ns {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for idx, name := range names {
 			if name == li.ListStyle {
-				numID = fmt.Sprintf("%d", idx)
+				numID = fmt.Sprintf("%d", idx+1)
 				break
 			}
-			idx++
 		}
 	}
 	b.WriteString(fmt.Sprintf(`<w:numId w:val="%s"/>`, numID))

@@ -78,6 +78,7 @@ func (w *Writer) generateHeaderFooterParts() {
 			w.headerParts = append(w.headerParts, headerFooterPart{
 				filename: filename,
 				content:  content,
+				header:   h,
 			})
 			headerIdx++
 		}
@@ -87,6 +88,7 @@ func (w *Writer) generateHeaderFooterParts() {
 			w.footerParts = append(w.footerParts, headerFooterPart{
 				filename: filename,
 				content:  content,
+				footer:   f,
 			})
 			footerIdx++
 		}
@@ -140,9 +142,7 @@ func (w *Writer) writeHeaderFooterFiles() error {
 func (w *Writer) headerPartMatches(filename string, h *document.Header) bool {
 	for _, hp := range w.headerParts {
 		if hp.filename == filename {
-			// Check if this part was generated from this header
-			expected := w.generateHeaderXML(h)
-			return string(hp.content) == string(expected)
+			return hp.header == h
 		}
 	}
 	return false
@@ -151,8 +151,7 @@ func (w *Writer) headerPartMatches(filename string, h *document.Header) bool {
 func (w *Writer) footerPartMatches(filename string, f *document.Footer) bool {
 	for _, fp := range w.footerParts {
 		if fp.filename == filename {
-			expected := w.generateFooterXML(f)
-			return string(fp.content) == string(expected)
+			return fp.footer == f
 		}
 	}
 	return false

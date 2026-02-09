@@ -77,16 +77,46 @@ func (w *Writer) writeHyperlink(b *strings.Builder, h *document.Hyperlink) {
 	b.WriteString(fmt.Sprintf(`<w:hyperlink r:id="%s">`, relID))
 	b.WriteString(`<w:r>`)
 	b.WriteString(`<w:rPr><w:rStyle w:val="Hyperlink"/>`)
-	rpr := fontStyleToXML(&h.Font, nil)
-	// Strip outer rPr tags since we already opened one
-	rpr = strings.TrimPrefix(rpr, "<w:rPr>")
-	rpr = strings.TrimSuffix(rpr, "</w:rPr>")
-	b.WriteString(rpr)
+	// Build inner rPr content directly instead of stripping outer tags
+	writeHyperlinkFontProps(b, &h.Font)
 	b.WriteString(`</w:rPr>`)
 	w.writeTextElement(b, h.Text)
 	b.WriteString(`</w:r>`)
 	b.WriteString(`</w:hyperlink>`)
 	b.WriteString(`</w:p>`)
+}
+
+// writeHyperlinkFontProps writes font style properties without the outer <w:rPr> wrapper.
+func writeHyperlinkFontProps(b *strings.Builder, f *style.FontStyle) {
+	if f == nil {
+		return
+	}
+	if f.Name != "" {
+		b.WriteString(fmt.Sprintf(`<w:rFonts w:ascii="%s" w:hAnsi="%s" w:cs="%s"/>`, escapeXML(f.Name), escapeXML(f.Name), escapeXML(f.Name)))
+	}
+	if f.Bold {
+		b.WriteString(`<w:b/>`)
+	}
+	if f.Italic {
+		b.WriteString(`<w:i/>`)
+	}
+	if f.Strikethrough {
+		b.WriteString(`<w:strike/>`)
+	}
+	if f.DoubleStrikethrough {
+		b.WriteString(`<w:dstrike/>`)
+	}
+	if f.Underline != "" && f.Underline != "none" {
+		b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
+	}
+	if f.Color != "" {
+		b.WriteString(fmt.Sprintf(`<w:color w:val="%s"/>`, f.Color))
+	}
+	if f.Size > 0 {
+		hp := int(f.Size * 2)
+		b.WriteString(fmt.Sprintf(`<w:sz w:val="%d"/>`, hp))
+		b.WriteString(fmt.Sprintf(`<w:szCs w:val="%d"/>`, hp))
+	}
 }
 
 func (w *Writer) writeHyperlinkInline(b *strings.Builder, h *document.Hyperlink) {
@@ -101,4 +131,3 @@ func (w *Writer) writeHyperlinkInline(b *strings.Builder, h *document.Hyperlink)
 
 // Ensure imports are used.
 var _ = common.PixelToEmu
-var _ style.FontStyle

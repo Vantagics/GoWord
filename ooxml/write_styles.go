@@ -2,6 +2,7 @@ package ooxml
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -93,22 +94,34 @@ func (w *Writer) writeStyles() error {
 	b.WriteString(`<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`)
 	b.WriteString(`</w:style>`)
 
-	// User-defined font styles as character styles
-	for name, fs := range w.doc.FontStyles() {
+	// User-defined font styles as character styles (sorted for deterministic output)
+	fontStyles := w.doc.FontStyles()
+	fontNames := make([]string, 0, len(fontStyles))
+	for name := range fontStyles {
+		fontNames = append(fontNames, name)
+	}
+	sort.Strings(fontNames)
+	for _, name := range fontNames {
+		fs := fontStyles[name]
 		b.WriteString(fmt.Sprintf(`<w:style w:type="character" w:styleId="%s">`, escapeXML(name)))
 		b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(name)))
-		fsCopy := fs
-		b.WriteString(fontStyleToXML(&fsCopy, nil))
+		b.WriteString(fontStyleToXML(&fs, nil))
 		b.WriteString(`</w:style>`)
 	}
 
-	// User-defined paragraph styles
-	for name, ps := range w.doc.ParagraphStyles() {
+	// User-defined paragraph styles (sorted for deterministic output)
+	paraStyles := w.doc.ParagraphStyles()
+	paraNames := make([]string, 0, len(paraStyles))
+	for name := range paraStyles {
+		paraNames = append(paraNames, name)
+	}
+	sort.Strings(paraNames)
+	for _, name := range paraNames {
+		ps := paraStyles[name]
 		b.WriteString(fmt.Sprintf(`<w:style w:type="paragraph" w:styleId="%s">`, escapeXML(name)))
 		b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(name)))
 		b.WriteString(`<w:basedOn w:val="Normal"/>`)
-		psCopy := ps
-		b.WriteString(paraStyleToXML(&psCopy, ""))
+		b.WriteString(paraStyleToXML(&ps, ""))
 		b.WriteString(`</w:style>`)
 	}
 

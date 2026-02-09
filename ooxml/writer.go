@@ -79,6 +79,8 @@ type contentTypeOverride struct {
 type headerFooterPart struct {
 	filename string
 	content  []byte
+	header   *document.Header // non-nil for header parts
+	footer   *document.Footer // non-nil for footer parts
 }
 
 // Save writes the document to a file.

@@ -465,10 +465,5 @@ func readCharData(decoder *xml.Decoder) (string, error) {
 }
 
 func readAll(r io.Reader) ([]byte, error) {
-	var buf strings.Builder
-	_, err := io.Copy(&buf, r)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(buf.String()), nil
+	return io.ReadAll(r)
 }

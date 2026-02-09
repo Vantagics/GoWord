@@ -2,6 +2,7 @@ package ooxml
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -11,12 +12,20 @@ func (w *Writer) writeNumbering() error {
 		return nil
 	}
 
+	// Sort style names for deterministic output
+	names := make([]string, 0, len(numStyles))
+	for name := range numStyles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var b strings.Builder
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<w:numbering xmlns:w="%s">`, nsW))
 
 	numID := 1
-	for name, ns := range numStyles {
+	for _, name := range names {
+		ns := numStyles[name]
 		abstractID := numID
 
 		// Abstract numbering definition
@@ -30,7 +39,7 @@ func (w *Writer) writeNumbering() error {
 
 		for lvl, level := range ns.Levels {
 			b.WriteString(fmt.Sprintf(`<w:lvl w:ilvl="%d">`, lvl))
-			b.WriteString(fmt.Sprintf(`<w:start w:val="1"/>`))
+			b.WriteString(`<w:start w:val="1"/>`)
 
 			numFmt := level.Format
 			if numFmt == "" {
@@ -69,7 +78,6 @@ func (w *Writer) writeNumbering() error {
 		b.WriteString(fmt.Sprintf(`<w:abstractNumId w:val="%d"/>`, abstractID))
 		b.WriteString(`</w:num>`)
 
-		_ = name // name is used as the key for lookup
 		numID++
 	}
 
