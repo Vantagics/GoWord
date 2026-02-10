@@ -153,16 +153,43 @@ func (r *docxReader) readRun(decoder *xml.Decoder) (*document.Run, error) {
 			case "u":
 				run.Style.Underline = "single"
 				for _, attr := range t.Attr {
-					if attr.Name.Local == "val" {
+					switch attr.Name.Local {
+					case "val":
 						run.Style.Underline = attr.Value
+					case "color":
+						run.Style.UnderlineColor = attr.Value
 					}
 				}
 			case "strike":
 				run.Style.Strikethrough = true
+			case "dstrike":
+				run.Style.DoubleStrikethrough = true
+			case "outline":
+				run.Style.Outline = true
+			case "shadow":
+				run.Style.Shadow = true
+			case "emboss":
+				run.Style.Emboss = true
+			case "imprint":
+				run.Style.Imprint = true
+			case "effect":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "val" {
+						run.Style.TextEffect = attr.Value
+					}
+				}
+			case "rtl":
+				run.Style.RightToLeft = true
 			case "color":
 				for _, attr := range t.Attr {
 					if attr.Name.Local == "val" {
 						run.Style.Color = attr.Value
+					}
+				}
+			case "highlight":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "val" {
+						run.Style.HighlightColor = attr.Value
 					}
 				}
 			case "sz":
@@ -173,10 +200,29 @@ func (r *docxReader) readRun(decoder *xml.Decoder) (*document.Run, error) {
 						}
 					}
 				}
+			case "kern":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "val" {
+						if hp, err := strconv.Atoi(attr.Value); err == nil {
+							run.Style.Kerning = float64(hp) / 2.0
+						}
+					}
+				}
+			case "spacing":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "val" {
+						if tw, err := strconv.Atoi(attr.Value); err == nil {
+							run.Style.Spacing = float64(tw) / 20.0
+						}
+					}
+				}
 			case "rFonts":
 				for _, attr := range t.Attr {
-					if attr.Name.Local == "ascii" {
+					switch attr.Name.Local {
+					case "ascii":
 						run.Style.Name = attr.Value
+					case "eastAsia":
+						run.Style.NameEastAsia = attr.Value
 					}
 				}
 			case "rStyle":
@@ -200,6 +246,16 @@ func (r *docxReader) readRun(decoder *xml.Decoder) (*document.Run, error) {
 				run.Style.AllCaps = true
 			case "smallCaps":
 				run.Style.SmallCaps = true
+			case "vanish":
+				run.Style.Hidden = true
+			case "noProof":
+				run.Style.NoProof = true
+			case "lang":
+				for _, attr := range t.Attr {
+					if attr.Name.Local == "val" {
+						run.Style.Lang = attr.Value
+					}
+				}
 			}
 		case xml.EndElement:
 			depth--

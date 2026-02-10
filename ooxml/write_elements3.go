@@ -72,6 +72,12 @@ func (w *Writer) writeTable(b *strings.Builder, t *document.Table) {
 	if ts.Layout != "" {
 		b.WriteString(fmt.Sprintf(`<w:tblLayout w:type="%s"/>`, ts.Layout))
 	}
+	if ts.CellSpacing > 0 {
+		b.WriteString(fmt.Sprintf(`<w:tblCellSpacing w:w="%d" w:type="dxa"/>`, ts.CellSpacing))
+	}
+	if ts.Indent > 0 {
+		b.WriteString(fmt.Sprintf(`<w:tblInd w:w="%d" w:type="dxa"/>`, ts.Indent))
+	}
 	b.WriteString(`</w:tblPr>`)
 
 	// Table grid

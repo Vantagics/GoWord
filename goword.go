@@ -43,27 +43,55 @@ func OpenFromBytes(data []byte) (*document.Document, error) {
 
 // Re-export commonly used types for convenience.
 type (
-	Document      = document.Document
-	Section       = document.Section
-	Paragraph     = document.Paragraph
-	TextRun       = document.TextRun
-	Table         = document.Table
-	Row           = document.Row
-	Cell          = document.Cell
-	Image         = document.Image
-	Hyperlink     = document.Hyperlink
-	Header        = document.Header
-	Footer        = document.Footer
-	Footnote      = document.Footnote
-	Endnote       = document.Endnote
-	ListItem      = document.ListItem
-	Bookmark      = document.Bookmark
-	Comment       = document.Comment
-	FontStyle     = style.FontStyle
+	Document       = document.Document
+	Section        = document.Section
+	Paragraph      = document.Paragraph
+	TextRun        = document.TextRun
+	Table          = document.Table
+	Row            = document.Row
+	Cell           = document.Cell
+	Image          = document.Image
+	Hyperlink      = document.Hyperlink
+	Header         = document.Header
+	Footer         = document.Footer
+	Footnote       = document.Footnote
+	Endnote        = document.Endnote
+	ListItem       = document.ListItem
+	Bookmark       = document.Bookmark
+	Comment        = document.Comment
+	FontStyle      = style.FontStyle
 	ParagraphStyle = style.ParagraphStyle
-	TableStyle    = style.TableStyle
-	DocProperties = common.DocProperties
+	TableStyle     = style.TableStyle
+	DocProperties  = common.DocProperties
 	NumberingStyle = document.NumberingStyle
 	NumberingLevel = document.NumberingLevel
-	Line          = document.Line
+	Line           = document.Line
+	WatermarkText    = document.WatermarkText
+	WatermarkPicture = document.WatermarkPicture
+	FormField        = document.FormField
+	FormFieldType    = document.FormFieldType
+	TabStop          = style.TabStop
+)
+
+// Form field type constants re-exported for convenience.
+const (
+	FormFieldTypeText     = document.FormFieldTypeText
+	FormFieldTypeCheckBox = document.FormFieldTypeCheckBox
+	FormFieldTypeDropDown = document.FormFieldTypeDropDown
+)
+
+// Field code constants re-exported for convenience.
+const (
+	FieldCurrentPage   = document.FieldCurrentPage
+	FieldNumberOfPages = document.FieldNumberOfPages
+	FieldDate          = document.FieldDate
+	FieldCreateDate    = document.FieldCreateDate
+	FieldEditTime      = document.FieldEditTime
+	FieldPrintDate     = document.FieldPrintDate
+	FieldSaveDate      = document.FieldSaveDate
+	FieldTime          = document.FieldTime
+	FieldFileName      = document.FieldFileName
+	FieldAuthor        = document.FieldAuthor
+	FieldTitle         = document.FieldTitle
+	FieldSubject       = document.FieldSubject
 )

@@ -50,6 +50,8 @@ func (w *Writer) writeTextRun(b *strings.Builder, tr *document.TextRun) {
 			w.writeEndnoteRef(b, e)
 		case *document.Bookmark:
 			w.writeBookmark(b, e)
+		case *document.Tab:
+			b.WriteString(`<w:r><w:tab/></w:r>`)
 		}
 	}
 	b.WriteString(`</w:p>`)

@@ -50,6 +50,17 @@ type Document struct {
 | `Endnotes() []*Endnote` | All endnotes |
 | `Comments() []*Comment` | All comments |
 | `Images() []*Image` | All images |
+| `Paragraphs() []*Paragraph` | All paragraphs across all sections (flattened) |
+| `Tables() []*Table` | All tables across all sections (flattened) |
+| `ExtractText() string` | Extract all text content as a single string |
+| `RemoveParagraph(p *Paragraph)` | Remove a paragraph from the document |
+| `InsertParagraphBefore(p *Paragraph) *Paragraph` | Insert empty paragraph before given one |
+| `InsertParagraphAfter(p *Paragraph) *Paragraph` | Insert empty paragraph after given one |
+| `AddWatermarkText(text string) *WatermarkText` | Add text watermark |
+| `AddWatermarkPicture(src string) *WatermarkPicture` | Add picture watermark from file |
+| `AddWatermarkPictureFromBytes(data []byte, mimeType string) *WatermarkPicture` | Add picture watermark from bytes |
+| `SetUpdateFieldsOnOpen(b bool)` | Auto-update fields (TOC, page numbers) on open |
+| `UpdateFieldsOnOpen() bool` | Check if fields update on open |
 
 ## Section
 
@@ -76,6 +87,9 @@ type Document struct {
 | `AddLine(lineStyle Line) *Line` | Add line shape |
 | `AddBookmark(name string) *Bookmark` | Add bookmark |
 | `AddComment(author, text string) *Comment` | Add comment |
+| `AddFormField(fieldType FormFieldType, name string) *FormField` | Add form field |
+| `AddTextInput(name string) *FormField` | Add text input form field |
+| `AddDropdownList(name string, values []string) *FormField` | Add dropdown list form field |
 | `AddHeader(headerType string) *Header` | Add header ("default", "first", "even") |
 | `AddFooter(footerType string) *Footer` | Add footer ("default", "first", "even") |
 
@@ -93,6 +107,7 @@ Mixed-format inline paragraph. Supports combining text, links, images, footnotes
 | `AddFootnote() *Footnote` | Add footnote reference |
 | `AddEndnote() *Endnote` | Add endnote reference |
 | `AddBookmark(name string) *Bookmark` | Add bookmark |
+| `AddTab()` | Add tab character |
 
 ## Table / Row / Cell
 
@@ -149,10 +164,12 @@ Both `Footnote` and `Endnote` support:
 ```go
 type FontStyle struct {
     Name                string  // Font family, e.g. "Arial"
+    NameEastAsia        string  // East Asian font family, e.g. "SimSun"
     Size                float64 // Size in points
     Bold                bool
     Italic              bool
     Underline           string  // "single", "double", "wave", "dash", "dotted", "none"
+    UnderlineColor      string  // Underline color (hex), e.g. "FF0000"
     Strikethrough       bool
     DoubleStrikethrough bool
     SuperScript         bool
@@ -163,8 +180,15 @@ type FontStyle struct {
     SmallCaps           bool
     Hidden              bool
     Spacing             float64 // Character spacing in points
+    Kerning             float64 // Font kerning in points (0 = off)
     NoProof             bool
     Lang                string  // e.g. "en-US"
+    Emboss              bool    // Embossed text effect
+    Shadow              bool    // Shadow text effect
+    Imprint             bool    // Imprinted (engraved) text effect
+    Outline             bool    // Outline text effect
+    TextEffect          string  // "blinkBackground", "lights", "antsBlack", "antsRed", "shimmer", "sparkle"
+    RightToLeft         bool    // Right-to-left text direction
 }
 ```
 
@@ -187,6 +211,13 @@ type ParagraphStyle struct {
     WidowControl    bool
     Borders         *ParagraphBorders
     Shading         *Shading
+    TabStops        []TabStop // Custom tab stops
+}
+
+type TabStop struct {
+    Position int    // Position in twips
+    Type     string // "left", "center", "right", "decimal", "bar"
+    Leader   string // "none", "dot", "hyphen", "underscore"
 }
 ```
 
@@ -201,6 +232,7 @@ type TableStyle struct {
     CellMarginBottom int
     CellMarginLeft  int
     CellMarginRight int
+    CellSpacing     int    // Cell spacing in twips (0 = none)
     BorderTop       *Border
     BorderBottom    *Border
     BorderLeft      *Border
@@ -208,6 +240,7 @@ type TableStyle struct {
     BorderInsideH   *Border
     BorderInsideV   *Border
     Layout          string // "fixed", "autofit"
+    Indent          int    // Table indent from leading margin in twips
 }
 
 // Convenience method
@@ -340,6 +373,76 @@ import "github.com/VantageDataChat/GoWord/common"
 | `common.EmuToPixel(emu int64) int` | EMU → pixels (96 DPI) |
 | `common.PixelToEmu(px int) int64` | Pixels → EMU (96 DPI) |
 
+## Watermark Types
+
+### WatermarkText
+
+```go
+type WatermarkText struct {
+    Text   string  // Watermark text
+    Font   string  // Font family, e.g. "Calibri"
+    Size   float64 // Font size in points (0 = auto)
+    Color  string  // Hex color, e.g. "C0C0C0"
+    Bold   bool
+    Italic bool
+}
+```
+
+### WatermarkPicture
+
+```go
+type WatermarkPicture struct {
+    Source   string // File path
+    Data     []byte // Raw image data
+    MimeType string
+    Width    int    // Width in points (0 = auto)
+    Height   int    // Height in points (0 = auto)
+    Washout  bool   // Apply washout effect
+}
+```
+
+## Form Field Types
+
+```go
+type FormField struct {
+    Type           FormFieldType
+    Name           string
+    DefaultValue   string
+    Value          string
+    Enabled        bool
+    CalcOnExit     bool
+    PossibleValues []string // For dropdown
+    MaxLength      int      // For text input (0 = unlimited)
+    Font           FontStyle
+    Para           ParagraphStyle
+}
+
+const (
+    FormFieldTypeText     FormFieldType = iota // Text input
+    FormFieldTypeCheckBox                      // Checkbox
+    FormFieldTypeDropDown                      // Dropdown list
+)
+```
+
+## Field Code Constants
+
+```go
+const (
+    FieldCurrentPage   = "PAGE"
+    FieldNumberOfPages = "NUMPAGES"
+    FieldDate          = "DATE"
+    FieldCreateDate    = "CREATEDATE"
+    FieldEditTime      = "EDITTIME"
+    FieldPrintDate     = "PRINTDATE"
+    FieldSaveDate      = "SAVEDATE"
+    FieldTime          = "TIME"
+    FieldFileName      = "FILENAME"
+    FieldAuthor        = "AUTHOR"
+    FieldTitle         = "TITLE"
+    FieldSubject       = "SUBJECT"
+)
+```
+
 ## Element Types
 
 All section elements implement the `Element` interface. Type-switch to identify:
@@ -362,7 +465,8 @@ for _, elem := range section.Elements {
     case *goword.Hyperlink:
         fmt.Println(e.URL, e.Text)
     // ... TextRun, TextBreak, PageBreak, ListItem, Footnote, Endnote,
-    //     Bookmark, BookmarkEnd, Comment, PreserveText, TOC, CheckBox, Line
+    //     Bookmark, BookmarkEnd, Comment, PreserveText, TOC, CheckBox, Line,
+    //     WatermarkText, WatermarkPicture, FormField, Tab
     }
 }
 ```

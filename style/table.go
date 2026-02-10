@@ -9,6 +9,7 @@ type TableStyle struct {
 	CellMarginBottom int
 	CellMarginLeft   int
 	CellMarginRight  int
+	CellSpacing int    // Cell spacing in twips (0 = none)
 	BorderTop    *Border
 	BorderBottom *Border
 	BorderLeft   *Border
@@ -16,6 +17,7 @@ type TableStyle struct {
 	BorderInsideH *Border
 	BorderInsideV *Border
 	Layout       string // "fixed", "autofit"
+	Indent       int    // Table indent from leading margin in twips
 }
 
 // RowStyle represents table row formatting.

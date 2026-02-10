@@ -11,6 +11,23 @@ type Element interface {
 	elementType() string
 }
 
+// Field code constants for use with PreserveText.
+const (
+	FieldCurrentPage   = "PAGE"
+	FieldNumberOfPages = "NUMPAGES"
+	FieldDate          = "DATE"
+	FieldCreateDate    = "CREATEDATE"
+	FieldEditTime      = "EDITTIME"
+	FieldPrintDate     = "PRINTDATE"
+	FieldSaveDate      = "SAVEDATE"
+	FieldTime          = "TIME"
+	FieldTOC           = "TOC"
+	FieldFileName      = "FILENAME"
+	FieldAuthor        = "AUTHOR"
+	FieldTitle         = "TITLE"
+	FieldSubject       = "SUBJECT"
+)
+
 // Section represents a document section.
 type Section struct {
 	doc      *Document
@@ -193,6 +210,52 @@ type Line struct {
 	Dash   string // "solid", "dash", "dot", etc.
 }
 
+// WatermarkText represents a text watermark.
+type WatermarkText struct {
+	Text   string
+	Font   string  // Font family, e.g. "Calibri"
+	Size   float64 // Font size in points (0 = auto)
+	Color  string  // Hex color, e.g. "C0C0C0"
+	Bold   bool
+	Italic bool
+}
+
+// WatermarkPicture represents a picture watermark.
+type WatermarkPicture struct {
+	Source  string // File path
+	Data    []byte // Raw image data
+	MimeType string
+	Width   int // Width in points (0 = auto)
+	Height  int // Height in points (0 = auto)
+	Washout bool
+}
+
+// FormField represents a form field (text input, dropdown, or checkbox).
+type FormField struct {
+	Type          FormFieldType
+	Name          string
+	DefaultValue  string
+	Value         string
+	Enabled       bool
+	CalcOnExit    bool
+	PossibleValues []string // For dropdown
+	MaxLength     int       // For text input (0 = unlimited)
+	Font          style.FontStyle
+	Para          style.ParagraphStyle
+}
+
+// FormFieldType is the type of form field.
+type FormFieldType int
+
+const (
+	FormFieldTypeText     FormFieldType = iota // Text input
+	FormFieldTypeCheckBox                      // Checkbox (use CheckBox element instead for simple cases)
+	FormFieldTypeDropDown                      // Dropdown list
+)
+
+// Tab represents a tab character in a run.
+type Tab struct{}
+
 // Implement elementType for all elements.
 func (p *Paragraph) elementType() string    { return "paragraph" }
 func (t *TextRun) elementType() string      { return "textrun" }
@@ -211,3 +274,7 @@ func (p *PreserveText) elementType() string { return "preservetext" }
 func (t *TOC) elementType() string          { return "toc" }
 func (c *CheckBox) elementType() string     { return "checkbox" }
 func (l *Line) elementType() string         { return "line" }
+func (w *WatermarkText) elementType() string    { return "watermarktext" }
+func (w *WatermarkPicture) elementType() string { return "watermarkpicture" }
+func (f *FormField) elementType() string        { return "formfield" }
+func (t *Tab) elementType() string              { return "tab" }

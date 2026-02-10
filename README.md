@@ -22,8 +22,15 @@ A pure Go library for reading and writing Microsoft Word documents (.docx / Offi
 - Footnotes and endnotes
 - Comments, bookmarks, table of contents
 - Checkboxes, line shapes
+- Watermarks (text and picture)
+- Form fields (text input, dropdown, checkbox)
+- Tab stops and tab characters
 - Named styles (font, paragraph, table, numbering)
 - TextRun for mixed-format inline content
+- ExtractText for full document text extraction
+- Document-level operations (Paragraphs, Tables, InsertParagraph, RemoveParagraph)
+- Field code constants (PAGE, NUMPAGES, DATE, AUTHOR, etc.)
+- UpdateFieldsOnOpen setting
 - Unit conversion utilities (twip, cm, inch, pt, EMU, pixel)
 
 ## Installation
@@ -181,6 +188,77 @@ doc.AddParagraphStyle("centered", style.ParagraphStyle{Alignment: style.AlignCen
 sec.AddTextWithStyle("Styled text", "emphasis", "centered")
 ```
 
+### Watermarks
+
+```go
+// Text watermark
+wm := doc.AddWatermarkText("DRAFT")
+wm.Font = "Arial"
+wm.Color = "C0C0C0"
+wm.Bold = true
+
+// Picture watermark from bytes
+wm2 := doc.AddWatermarkPictureFromBytes(pngData, "image/png")
+wm2.Washout = true
+```
+
+### Form Fields
+
+```go
+// Text input
+ff := sec.AddTextInput("username")
+ff.DefaultValue = "Enter name"
+ff.MaxLength = 50
+
+// Dropdown list
+dd := sec.AddDropdownList("color", []string{"Red", "Green", "Blue"})
+dd.DefaultValue = "Green"
+
+// Checkbox form field
+cb := sec.AddFormField(goword.FormFieldTypeCheckBox, "agree")
+cb.Value = "true"
+```
+
+### Tab Stops
+
+```go
+ps := &style.ParagraphStyle{
+    TabStops: []style.TabStop{
+        {Position: 2880, Type: "center", Leader: "dot"},
+        {Position: 5760, Type: "right"},
+    },
+}
+tr := sec.AddTextRun(ps)
+tr.AddText("Left", nil)
+tr.AddTab()
+tr.AddText("Center", nil)
+tr.AddTab()
+tr.AddText("Right", nil)
+```
+
+### Extract Text
+
+```go
+doc, _ := goword.Open("document.docx")
+text := doc.ExtractText()
+fmt.Println(text)
+```
+
+### Document-Level Operations
+
+```go
+// Get all paragraphs/tables across sections
+paragraphs := doc.Paragraphs()
+tables := doc.Tables()
+
+// Insert/remove paragraphs
+newP := doc.InsertParagraphAfter(paragraphs[0])
+doc.RemoveParagraph(paragraphs[1])
+
+// Auto-update fields on open
+doc.SetUpdateFieldsOnOpen(true)
+```
+
 ## Project Structure
 
 ```
@@ -216,14 +294,14 @@ github.com/VantageDataChat/GoWord
 go test ./... -race
 ```
 
-222 tests, all passing with race detection. Coverage:
+374 tests, all passing with race detection. Coverage:
 
 | Package    | Coverage |
 |------------|----------|
 | `common`   | 100%     |
 | `style`    | 100%     |
-| `document` | 97.9%    |
-| `ooxml`    | 93.3%    |
+| `document` | 100%     |
+| `ooxml`    | 96.1%    |
 
 ## License
 

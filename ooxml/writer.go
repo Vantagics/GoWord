@@ -62,6 +62,9 @@ type Writer struct {
 	footerParts []headerFooterPart
 
 	nextDocRelID int
+
+	// Watermark tracking
+	watermarkWritten bool
 }
 
 type relationship struct {
@@ -244,7 +247,13 @@ func fontStyleToXML(fs *style.FontStyle, defaultFont *style.FontStyle) string {
 	}
 
 	if f.Name != "" {
-		b.WriteString(fmt.Sprintf(`<w:rFonts w:ascii="%s" w:hAnsi="%s" w:cs="%s"/>`, escapeXML(f.Name), escapeXML(f.Name), escapeXML(f.Name)))
+		b.WriteString(fmt.Sprintf(`<w:rFonts w:ascii="%s" w:hAnsi="%s" w:cs="%s"`, escapeXML(f.Name), escapeXML(f.Name), escapeXML(f.Name)))
+		if f.NameEastAsia != "" {
+			b.WriteString(fmt.Sprintf(` w:eastAsia="%s"`, escapeXML(f.NameEastAsia)))
+		}
+		b.WriteString(`/>`)
+	} else if f.NameEastAsia != "" {
+		b.WriteString(fmt.Sprintf(`<w:rFonts w:eastAsia="%s"/>`, escapeXML(f.NameEastAsia)))
 	}
 	if f.Bold {
 		b.WriteString(`<w:b/>`)
@@ -258,8 +267,27 @@ func fontStyleToXML(fs *style.FontStyle, defaultFont *style.FontStyle) string {
 	if f.DoubleStrikethrough {
 		b.WriteString(`<w:dstrike/>`)
 	}
+	if f.Outline {
+		b.WriteString(`<w:outline/>`)
+	}
+	if f.Shadow {
+		b.WriteString(`<w:shadow/>`)
+	}
+	if f.Emboss {
+		b.WriteString(`<w:emboss/>`)
+	}
+	if f.Imprint {
+		b.WriteString(`<w:imprint/>`)
+	}
 	if f.Underline != "" && f.Underline != "none" {
-		b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
+		if f.UnderlineColor != "" {
+			b.WriteString(fmt.Sprintf(`<w:u w:val="%s" w:color="%s"/>`, f.Underline, f.UnderlineColor))
+		} else {
+			b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
+		}
+	}
+	if f.TextEffect != "" {
+		b.WriteString(fmt.Sprintf(`<w:effect w:val="%s"/>`, f.TextEffect))
 	}
 	if f.Color != "" {
 		b.WriteString(fmt.Sprintf(`<w:color w:val="%s"/>`, f.Color))
@@ -289,6 +317,17 @@ func fontStyleToXML(fs *style.FontStyle, defaultFont *style.FontStyle) string {
 	}
 	if f.NoProof {
 		b.WriteString(`<w:noProof/>`)
+	}
+	if f.Spacing != 0 {
+		sp := int(f.Spacing * 20) // points to twips
+		b.WriteString(fmt.Sprintf(`<w:spacing w:val="%d"/>`, sp))
+	}
+	if f.Kerning > 0 {
+		hp := int(f.Kerning * 2) // points to half-points
+		b.WriteString(fmt.Sprintf(`<w:kern w:val="%d"/>`, hp))
+	}
+	if f.RightToLeft {
+		b.WriteString(`<w:rtl/>`)
 	}
 	if f.Lang != "" {
 		b.WriteString(fmt.Sprintf(`<w:lang w:val="%s"/>`, f.Lang))
@@ -368,6 +407,21 @@ func paraStyleToXML(ps *style.ParagraphStyle, styleName string) string {
 		if ps.Shading != nil {
 			b.WriteString(fmt.Sprintf(`<w:shd w:val="%s" w:color="%s" w:fill="%s"/>`,
 				ps.Shading.Pattern, ps.Shading.Color, ps.Shading.Fill))
+		}
+		if len(ps.TabStops) > 0 {
+			b.WriteString("<w:tabs>")
+			for _, ts := range ps.TabStops {
+				tabType := ts.Type
+				if tabType == "" {
+					tabType = "left"
+				}
+				leader := ts.Leader
+				if leader == "" {
+					leader = "none"
+				}
+				b.WriteString(fmt.Sprintf(`<w:tab w:val="%s" w:pos="%d" w:leader="%s"/>`, tabType, ts.Position, leader))
+			}
+			b.WriteString("</w:tabs>")
 		}
 		writeBorders(&b, ps.Borders)
 	}

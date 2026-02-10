@@ -1,0 +1,5 @@
+mode: set
+github.com/VantageDataChat/GoWord/goword.go:24.13,27.2 1 1
+github.com/VantageDataChat/GoWord/goword.go:30.31,32.2 1 1
+github.com/VantageDataChat/GoWord/goword.go:35.52,37.2 1 0
+github.com/VantageDataChat/GoWord/goword.go:40.61,42.2 1 1

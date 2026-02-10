@@ -277,3 +277,113 @@ func (w *Writer) writeLine(b *strings.Builder, l *document.Line) {
 	b.WriteString(`</w:r>`)
 	b.WriteString(`</w:p>`)
 }
+
+func (w *Writer) writeFormField(b *strings.Builder, ff *document.FormField) {
+	b.WriteString(`<w:p>`)
+	ppr := paraStyleToXML(&ff.Para, "")
+	if ppr != "" {
+		b.WriteString(ppr)
+	}
+
+	switch ff.Type {
+	case document.FormFieldTypeText:
+		w.writeTextInputField(b, ff)
+	case document.FormFieldTypeDropDown:
+		w.writeDropDownField(b, ff)
+	case document.FormFieldTypeCheckBox:
+		w.writeCheckBoxFormField(b, ff)
+	}
+
+	b.WriteString(`</w:p>`)
+}
+
+func (w *Writer) writeTextInputField(b *strings.Builder, ff *document.FormField) {
+	b.WriteString(`<w:r>`)
+	b.WriteString(`<w:fldChar w:fldCharType="begin">`)
+	b.WriteString(`<w:ffData>`)
+	b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(ff.Name)))
+	if ff.Enabled {
+		b.WriteString(`<w:enabled/>`)
+	}
+	if ff.CalcOnExit {
+		b.WriteString(`<w:calcOnExit w:val="true"/>`)
+	}
+	b.WriteString(`<w:textInput>`)
+	if ff.DefaultValue != "" {
+		b.WriteString(fmt.Sprintf(`<w:default w:val="%s"/>`, escapeXML(ff.DefaultValue)))
+	}
+	if ff.MaxLength > 0 {
+		b.WriteString(fmt.Sprintf(`<w:maxLength w:val="%d"/>`, ff.MaxLength))
+	}
+	b.WriteString(`</w:textInput>`)
+	b.WriteString(`</w:ffData>`)
+	b.WriteString(`</w:fldChar>`)
+	b.WriteString(`</w:r>`)
+	b.WriteString(`<w:r><w:instrText xml:space="preserve"> FORMTEXT </w:instrText></w:r>`)
+	b.WriteString(`<w:r><w:fldChar w:fldCharType="separate"/></w:r>`)
+	val := ff.Value
+	if val == "" {
+		val = ff.DefaultValue
+	}
+	b.WriteString(`<w:r>`)
+	rpr := fontStyleToXML(&ff.Font, nil)
+	if rpr != "" {
+		b.WriteString(rpr)
+	}
+	w.writeTextElement(b, val)
+	b.WriteString(`</w:r>`)
+	b.WriteString(`<w:r><w:fldChar w:fldCharType="end"/></w:r>`)
+}
+
+func (w *Writer) writeDropDownField(b *strings.Builder, ff *document.FormField) {
+	b.WriteString(`<w:r>`)
+	b.WriteString(`<w:fldChar w:fldCharType="begin">`)
+	b.WriteString(`<w:ffData>`)
+	b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(ff.Name)))
+	if ff.Enabled {
+		b.WriteString(`<w:enabled/>`)
+	}
+	if ff.CalcOnExit {
+		b.WriteString(`<w:calcOnExit w:val="true"/>`)
+	}
+	b.WriteString(`<w:ddList>`)
+	if ff.DefaultValue != "" {
+		// Find index of default value
+		for i, v := range ff.PossibleValues {
+			if v == ff.DefaultValue {
+				b.WriteString(fmt.Sprintf(`<w:default w:val="%d"/>`, i))
+				break
+			}
+		}
+	}
+	for _, v := range ff.PossibleValues {
+		b.WriteString(fmt.Sprintf(`<w:listEntry w:val="%s"/>`, escapeXML(v)))
+	}
+	b.WriteString(`</w:ddList>`)
+	b.WriteString(`</w:ffData>`)
+	b.WriteString(`</w:fldChar>`)
+	b.WriteString(`</w:r>`)
+	b.WriteString(`<w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r>`)
+	b.WriteString(`<w:r><w:fldChar w:fldCharType="separate"/></w:r>`)
+	b.WriteString(`<w:r><w:fldChar w:fldCharType="end"/></w:r>`)
+}
+
+func (w *Writer) writeCheckBoxFormField(b *strings.Builder, ff *document.FormField) {
+	b.WriteString(`<w:r>`)
+	b.WriteString(`<w:fldChar w:fldCharType="begin">`)
+	b.WriteString(`<w:ffData>`)
+	b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(ff.Name)))
+	if ff.Enabled {
+		b.WriteString(`<w:enabled/>`)
+	}
+	checked := "0"
+	if ff.Value == "true" || ff.Value == "1" {
+		checked = "1"
+	}
+	b.WriteString(fmt.Sprintf(`<w:checkBox><w:sizeAuto/><w:default w:val="%s"/></w:checkBox>`, checked))
+	b.WriteString(`</w:ffData>`)
+	b.WriteString(`</w:fldChar>`)
+	b.WriteString(`</w:r>`)
+	b.WriteString(`<w:r><w:instrText xml:space="preserve"> FORMCHECKBOX </w:instrText></w:r>`)
+	b.WriteString(`<w:r><w:fldChar w:fldCharType="end"/></w:r>`)
+}

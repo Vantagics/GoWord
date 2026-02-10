@@ -50,6 +50,17 @@ type Document struct {
 | `Endnotes() []*Endnote` | 所有尾注 |
 | `Comments() []*Comment` | 所有批注 |
 | `Images() []*Image` | 所有图片 |
+| `Paragraphs() []*Paragraph` | 所有段落（跨节扁平化） |
+| `Tables() []*Table` | 所有表格（跨节扁平化） |
+| `ExtractText() string` | 提取全部文本内容 |
+| `RemoveParagraph(p *Paragraph)` | 删除段落 |
+| `InsertParagraphBefore(p *Paragraph) *Paragraph` | 在指定段落前插入空段落 |
+| `InsertParagraphAfter(p *Paragraph) *Paragraph` | 在指定段落后插入空段落 |
+| `AddWatermarkText(text string) *WatermarkText` | 添加文字水印 |
+| `AddWatermarkPicture(src string) *WatermarkPicture` | 从文件添加图片水印 |
+| `AddWatermarkPictureFromBytes(data []byte, mimeType string) *WatermarkPicture` | 从字节添加图片水印 |
+| `SetUpdateFieldsOnOpen(b bool)` | 设置打开时自动更新域（目录、页码等） |
+| `UpdateFieldsOnOpen() bool` | 查询是否打开时更新域 |
 
 ## Section 节
 
@@ -76,6 +87,9 @@ type Document struct {
 | `AddLine(lineStyle Line) *Line` | 添加线条 |
 | `AddBookmark(name string) *Bookmark` | 添加书签 |
 | `AddComment(author, text string) *Comment` | 添加批注 |
+| `AddFormField(fieldType FormFieldType, name string) *FormField` | 添加表单字段 |
+| `AddTextInput(name string) *FormField` | 添加文本输入表单字段 |
+| `AddDropdownList(name string, values []string) *FormField` | 添加下拉列表表单字段 |
 | `AddHeader(headerType string) *Header` | 添加页眉（"default"、"first"、"even"） |
 | `AddFooter(footerType string) *Footer` | 添加页脚（"default"、"first"、"even"） |
 
@@ -94,6 +108,7 @@ type Document struct {
 | `AddFootnote() *Footnote` | 添加脚注引用 |
 | `AddEndnote() *Endnote` | 添加尾注引用 |
 | `AddBookmark(name string) *Bookmark` | 添加书签 |
+| `AddTab()` | 添加制表符 |
 
 ## Table / Row / Cell 表格
 
@@ -149,10 +164,12 @@ type Document struct {
 ```go
 type FontStyle struct {
     Name                string  // 字体名称，如 "Arial"
+    NameEastAsia        string  // 东亚字体名称，如 "SimSun"（宋体）
     Size                float64 // 字号（磅）
     Bold                bool    // 加粗
     Italic              bool    // 斜体
     Underline           string  // "single"、"double"、"wave"、"dash"、"dotted"、"none"
+    UnderlineColor      string  // 下划线颜色（十六进制），如 "FF0000"
     Strikethrough       bool    // 删除线
     DoubleStrikethrough bool    // 双删除线
     SuperScript         bool    // 上标
@@ -163,8 +180,15 @@ type FontStyle struct {
     SmallCaps           bool    // 小型大写
     Hidden              bool    // 隐藏文字
     Spacing             float64 // 字符间距（磅）
+    Kerning             float64 // 字距调整（磅，0 = 关闭）
     NoProof             bool    // 不检查拼写
     Lang                string  // 语言标签，如 "zh-CN"
+    Emboss              bool    // 浮雕效果
+    Shadow              bool    // 阴影效果
+    Imprint             bool    // 阴文效果
+    Outline             bool    // 空心效果
+    TextEffect          string  // 文字动画："blinkBackground"、"lights"、"antsBlack"、"antsRed"、"shimmer"、"sparkle"
+    RightToLeft         bool    // 从右到左文字方向
 }
 ```
 
@@ -187,6 +211,13 @@ type ParagraphStyle struct {
     WidowControl    bool   // 孤行控制
     Borders         *ParagraphBorders
     Shading         *Shading
+    TabStops        []TabStop // 自定义制表位
+}
+
+type TabStop struct {
+    Position int    // 位置（twip）
+    Type     string // "left"、"center"、"right"、"decimal"、"bar"
+    Leader   string // "none"、"dot"、"hyphen"、"underscore"
 }
 ```
 
@@ -201,6 +232,7 @@ type TableStyle struct {
     CellMarginBottom int
     CellMarginLeft  int
     CellMarginRight int
+    CellSpacing     int    // 单元格间距（twip，0 = 无）
     BorderTop       *Border
     BorderBottom    *Border
     BorderLeft      *Border
@@ -208,6 +240,7 @@ type TableStyle struct {
     BorderInsideH   *Border
     BorderInsideV   *Border
     Layout          string // "fixed"、"autofit"
+    Indent          int    // 表格缩进（twip）
 }
 
 // 便捷方法：一次设置所有边框
@@ -340,6 +373,76 @@ import "github.com/VantageDataChat/GoWord/common"
 | `common.EmuToPixel(emu int64) int` | EMU → 像素（96 DPI） |
 | `common.PixelToEmu(px int) int64` | 像素 → EMU（96 DPI） |
 
+## 水印类型
+
+### WatermarkText 文字水印
+
+```go
+type WatermarkText struct {
+    Text   string  // 水印文字
+    Font   string  // 字体，如 "Calibri"
+    Size   float64 // 字号（磅，0 = 自动）
+    Color  string  // 十六进制颜色，如 "C0C0C0"
+    Bold   bool    // 加粗
+    Italic bool    // 斜体
+}
+```
+
+### WatermarkPicture 图片水印
+
+```go
+type WatermarkPicture struct {
+    Source   string // 文件路径
+    Data     []byte // 原始图片数据
+    MimeType string
+    Width    int    // 宽度（磅，0 = 自动）
+    Height   int    // 高度（磅，0 = 自动）
+    Washout  bool   // 冲蚀效果
+}
+```
+
+## 表单字段类型
+
+```go
+type FormField struct {
+    Type           FormFieldType
+    Name           string
+    DefaultValue   string
+    Value          string
+    Enabled        bool
+    CalcOnExit     bool
+    PossibleValues []string // 下拉列表选项
+    MaxLength      int      // 文本输入最大长度（0 = 无限制）
+    Font           FontStyle
+    Para           ParagraphStyle
+}
+
+const (
+    FormFieldTypeText     FormFieldType = iota // 文本输入
+    FormFieldTypeCheckBox                      // 复选框
+    FormFieldTypeDropDown                      // 下拉列表
+)
+```
+
+## 域代码常量
+
+```go
+const (
+    FieldCurrentPage   = "PAGE"       // 当前页码
+    FieldNumberOfPages = "NUMPAGES"   // 总页数
+    FieldDate          = "DATE"       // 日期
+    FieldCreateDate    = "CREATEDATE" // 创建日期
+    FieldEditTime      = "EDITTIME"   // 编辑时间
+    FieldPrintDate     = "PRINTDATE"  // 打印日期
+    FieldSaveDate      = "SAVEDATE"   // 保存日期
+    FieldTime          = "TIME"       // 时间
+    FieldFileName      = "FILENAME"   // 文件名
+    FieldAuthor        = "AUTHOR"     // 作者
+    FieldTitle         = "TITLE"      // 标题
+    FieldSubject       = "SUBJECT"    // 主题
+)
+```
+
 ## 元素类型
 
 所有节元素均实现 `Element` 接口。使用类型断言识别：
@@ -362,7 +465,8 @@ for _, elem := range section.Elements {
     case *goword.Hyperlink:
         fmt.Println(e.URL, e.Text)
     // ... TextRun, TextBreak, PageBreak, ListItem, Footnote, Endnote,
-    //     Bookmark, BookmarkEnd, Comment, PreserveText, TOC, CheckBox, Line
+    //     Bookmark, BookmarkEnd, Comment, PreserveText, TOC, CheckBox, Line,
+    //     WatermarkText, WatermarkPicture, FormField, Tab
     }
 }
 ```

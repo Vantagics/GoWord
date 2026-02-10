@@ -24,6 +24,13 @@ type Document struct {
 	endnotes  []*Endnote
 	comments  []*Comment
 
+	// Watermarks
+	watermarkText    *WatermarkText
+	watermarkPicture *WatermarkPicture
+
+	// Settings
+	updateFieldsOnOpen bool
+
 	// Internal counters
 	nextRelID    int
 	nextImageID  int

@@ -43,6 +43,8 @@ func (w *Writer) writeElementXML(b *strings.Builder, elem document.Element) {
 		w.writeCheckBox(b, e)
 	case *document.Line:
 		w.writeLine(b, e)
+	case *document.FormField:
+		w.writeFormField(b, e)
 	}
 }
 

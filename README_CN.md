@@ -22,8 +22,15 @@
 - 脚注和尾注
 - 批注、书签、目录
 - 复选框、线条图形
+- 水印（文字水印和图片水印）
+- 表单字段（文本输入、下拉列表、复选框）
+- 制表位和制表符
 - 命名样式（字体、段落、表格、编号）
 - TextRun 混合格式内联内容
+- ExtractText 全文提取
+- 文档级操作（Paragraphs、Tables、InsertParagraph、RemoveParagraph）
+- 域代码常量（PAGE、NUMPAGES、DATE、AUTHOR 等）
+- UpdateFieldsOnOpen 设置
 - 单位转换工具（twip、厘米、英寸、磅、EMU、像素）
 
 ## 安装
@@ -181,6 +188,77 @@ doc.AddParagraphStyle("centered", style.ParagraphStyle{Alignment: style.AlignCen
 sec.AddTextWithStyle("带样式的文本", "emphasis", "centered")
 ```
 
+### 水印
+
+```go
+// 文字水印
+wm := doc.AddWatermarkText("草稿")
+wm.Font = "SimSun"
+wm.Color = "C0C0C0"
+wm.Bold = true
+
+// 图片水印
+wm2 := doc.AddWatermarkPictureFromBytes(pngData, "image/png")
+wm2.Washout = true
+```
+
+### 表单字段
+
+```go
+// 文本输入
+ff := sec.AddTextInput("username")
+ff.DefaultValue = "请输入姓名"
+ff.MaxLength = 50
+
+// 下拉列表
+dd := sec.AddDropdownList("color", []string{"红色", "绿色", "蓝色"})
+dd.DefaultValue = "绿色"
+
+// 复选框表单字段
+cb := sec.AddFormField(goword.FormFieldTypeCheckBox, "agree")
+cb.Value = "true"
+```
+
+### 制表位
+
+```go
+ps := &style.ParagraphStyle{
+    TabStops: []style.TabStop{
+        {Position: 2880, Type: "center", Leader: "dot"},
+        {Position: 5760, Type: "right"},
+    },
+}
+tr := sec.AddTextRun(ps)
+tr.AddText("左对齐", nil)
+tr.AddTab()
+tr.AddText("居中", nil)
+tr.AddTab()
+tr.AddText("右对齐", nil)
+```
+
+### 提取文本
+
+```go
+doc, _ := goword.Open("document.docx")
+text := doc.ExtractText()
+fmt.Println(text)
+```
+
+### 文档级操作
+
+```go
+// 获取所有段落/表格（跨节）
+paragraphs := doc.Paragraphs()
+tables := doc.Tables()
+
+// 插入/删除段落
+newP := doc.InsertParagraphAfter(paragraphs[0])
+doc.RemoveParagraph(paragraphs[1])
+
+// 打开时自动更新域
+doc.SetUpdateFieldsOnOpen(true)
+```
+
 ## 项目结构
 
 ```
@@ -216,14 +294,14 @@ github.com/VantageDataChat/GoWord
 go test ./... -race
 ```
 
-共 222 个测试，全部通过（含竞态检测）。覆盖率：
+共 374 个测试，全部通过（含竞态检测）。覆盖率：
 
 | 包         | 覆盖率   |
 |------------|----------|
 | `common`   | 100%     |
 | `style`    | 100%     |
-| `document` | 97.9%    |
-| `ooxml`    | 93.3%    |
+| `document` | 100%     |
+| `ooxml`    | 96.1%    |
 
 ## 许可证
 

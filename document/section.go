@@ -220,6 +220,29 @@ func (s *Section) AddComment(author, text string) *Comment {
 	return c
 }
 
+// AddFormField adds a form field (text input, dropdown, or checkbox) to the section.
+func (s *Section) AddFormField(fieldType FormFieldType, name string) *FormField {
+	ff := &FormField{
+		Type:    fieldType,
+		Name:    name,
+		Enabled: true,
+	}
+	s.Elements = append(s.Elements, ff)
+	return ff
+}
+
+// AddTextInput adds a text input form field to the section.
+func (s *Section) AddTextInput(name string) *FormField {
+	return s.AddFormField(FormFieldTypeText, name)
+}
+
+// AddDropdownList adds a dropdown list form field to the section.
+func (s *Section) AddDropdownList(name string, values []string) *FormField {
+	ff := s.AddFormField(FormFieldTypeDropDown, name)
+	ff.PossibleValues = values
+	return ff
+}
+
 // AddHeader adds a header to the section.
 func (s *Section) AddHeader(headerType string) *Header {
 	if headerType == "" {

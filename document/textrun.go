@@ -91,3 +91,8 @@ func (tr *TextRun) AddBookmark(name string) *Bookmark {
 	tr.Elements = append(tr.Elements, bm)
 	return bm
 }
+
+// AddTab adds a tab character to the TextRun.
+func (tr *TextRun) AddTab() {
+	tr.Elements = append(tr.Elements, &Tab{})
+}
