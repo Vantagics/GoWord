@@ -21,6 +21,9 @@ import (
 	"github.com/VantageDataChat/GoWord/style"
 )
 
+// Version is the current version of the GoWord library.
+const Version = "1.0.0"
+
 func init() {
 	// Register OOXML reader/writer with the document package.
 	document.RegisterIO(ooxml.Read, ooxml.ReadFromBytes, ooxml.Save, ooxml.WriteToBytes)
