@@ -43,3 +43,18 @@ Round-trip (reference opens the goword rewrite and keeps ≥90% of the words it 
 - `2010-mcAlternateContent.docx` does not open in LibreOffice at all (original or rewrite).
 - python-docx, pandoc, and POI cannot read the original strict-namespace file; the goword rewrite of that file is readable.
 - Numbering overrides and some form fields are only partly reflected in extracted text.
+
+## Round 2 — PHPWord reader documents
+
+Samples added under `testdata/word/phpword/` (LGPL-3.0): `reader.docx`, `reader-2011.docx`, `reader-comments.docx`, `reader-formula.docx`, `reader-styles.docx`, `Sample_07_TemplateCloneRow.docx`, `Sample_11_ReadWord2007.docx`, `Sample_23_TemplateBlock.docx`, `Sample_42_TemplateSetCheckbox.docx`, `without_table_macros.docx`.
+
+Harness on this batch: 10 files. Round-trip opened cleanly in all four reference tools (10/10). Read mismatches: 1 file each for LibreOffice, python-docx, and POI (`reader-comments.docx`, tracked-change display — goword keeps the accepted text `[test]`, LibreOffice keeps the deleted `T` as `[Ttest]`). pandoc mismatch on `reader-formula.docx` is TeX (`\frac{\pi}{2}`) versus Office math characters.
+
+### Fixed
+
+- OMML fractions, superscripts, and subscripts are linearized (`π/2` instead of `π2`) when text is extracted from equations.
+
+### Remaining
+
+- Same gaps as round 1, plus tracked-change rendering does not try to match LibreOffice's combined deleted+inserted string.
+

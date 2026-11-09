@@ -305,6 +305,18 @@ func visibleText(raw string) string {
 					}
 					continue
 				}
+			case "den":
+				if skip == 0 {
+					b.WriteByte('/')
+				}
+			case "sup":
+				if skip == 0 {
+					b.WriteByte('^')
+				}
+			case "sub":
+				if skip == 0 {
+					b.WriteByte('_')
+				}
 			case "t":
 				s, err := readCharData(dec)
 				if err != nil {

@@ -10,6 +10,7 @@ licenses, which are separate from GoWord's license.
 | `poi/` | [apache/poi](https://github.com/apache/poi) `test-data/document` | Apache-2.0 |
 | `mammoth/` | [mwilliamson/mammoth.js](https://github.com/mwilliamson/mammoth.js) `test/test-data` | BSD-2-Clause |
 | `docx4j/` | [plutext/docx4j](https://github.com/plutext/docx4j) test resources and sample docs | Apache-2.0 |
+| `phpword/` | [PHPOffice/PHPWord](https://github.com/PHPOffice/PHPWord) `tests/PhpWordTests/_files` and `samples/resources` | LGPL-3.0 |
 
 `scripts/fetch_word_samples.sh` downloads the same set. The files were produced
 by Microsoft Word or by libraries whose test corpus is Word-generated OOXML,
