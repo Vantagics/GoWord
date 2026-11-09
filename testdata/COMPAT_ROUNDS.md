@@ -74,3 +74,17 @@ Cell-level structured document tags are unwrapped into table cells, so the text 
 
 LibreOffice is still about one word short on `SDT.docx` and `SDT_Run.docx` (recall 0.875). POI still under-reads `comment.docx` relative to goword, which also emits the comment body.
 
+## Round 4 — more Apache POI documents
+
+Samples added in `testdata/word/poi/`: `WithGIF.docx`, `ThreeColHeadFoot.docx`, `EmbeddedDocument.docx`, `documentProtection_trackedChanges_no_password.docx`, `SimpleHeadThreeColFoot.docx`, `Tika-792.docx`, `bug66312.docx`.
+
+Six of the seven round-tripped through every reference tool. `Tika-792.docx` is almost entirely tracked deletions (`s` and `.`). LibreOffice and POI showed that text and goword showed blank lines (recall 0).
+
+### Fixed
+
+Deleted and moved-from text (`w:delText`) is included in extracted text, in document order, while the original `w:del` markup is still what gets written back. `Tika-792.docx` now yields `s.`. The PHPWord comment sample's accepted-plus-deleted string is `[Ttest]`, which matches LibreOffice.
+
+### Remaining
+
+A trailing `b` in `Tika-792.docx` is still inside a nested move that this pass does not surface. Comment bodies are still emitted in addition to the anchor text, so tools that ignore comments report extra words.
+

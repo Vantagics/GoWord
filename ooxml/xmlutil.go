@@ -345,6 +345,28 @@ func visibleText(raw string) string {
 	return b.String()
 }
 
+// deletedText collects w:delText, which is the text Word stores inside w:del.
+func deletedText(raw string) string {
+	dec := xml.NewDecoder(strings.NewReader(raw))
+	var b strings.Builder
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "delText" {
+			continue
+		}
+		s, err := readCharData(dec)
+		if err != nil {
+			break
+		}
+		b.WriteString(s)
+	}
+	return b.String()
+}
+
 func atoiAttr(start xml.StartElement, local string) int {
 	v, ok := attr(start, local)
 	if !ok {

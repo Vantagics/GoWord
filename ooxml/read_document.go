@@ -221,7 +221,7 @@ func (r *docxReader) readParagraph(dec *xml.Decoder) (*document.Paragraph, strin
 				if err != nil {
 					return p, sect, err
 				}
-				text := visibleText(raw)
+				text := visibleText(raw) + deletedText(raw)
 				p.Inlines = append(p.Inlines, &document.RawXML{XML: raw, Text: text})
 				if text != "" {
 					p.Runs = append(p.Runs, &document.Run{Text: text})
@@ -231,7 +231,11 @@ func (r *docxReader) readParagraph(dec *xml.Decoder) (*document.Paragraph, strin
 				if err != nil {
 					return p, sect, err
 				}
-				p.Inlines = append(p.Inlines, &document.RawXML{XML: raw})
+				text := deletedText(raw)
+				p.Inlines = append(p.Inlines, &document.RawXML{XML: raw, Text: text})
+				if text != "" {
+					p.Runs = append(p.Runs, &document.Run{Text: text})
+				}
 			case "sdt", "smartTag", "customXml":
 				if err := r.unwrapInline(dec, p, &fld); err != nil {
 					return p, sect, err
