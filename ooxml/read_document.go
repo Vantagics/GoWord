@@ -1138,6 +1138,12 @@ func (r *docxReader) readRow(dec *xml.Decoder) (*document.Row, error) {
 					return row, err
 				}
 				row.Cells = append(row.Cells, cell)
+			case "sdt":
+				cells, err := r.readSdtCells(dec)
+				if err != nil {
+					return row, err
+				}
+				row.Cells = append(row.Cells, cells...)
 			default:
 				if _, err := r.captureElement(dec, t); err != nil {
 					return row, err
@@ -1172,6 +1178,47 @@ func (r *docxReader) interpretTrPr(row *document.Row, raw string) {
 			row.Style.IsHeader = onOff(se)
 		case "cantSplit":
 			row.Style.CantSplit = onOff(se)
+		}
+	}
+}
+
+// readSdtCells reads a content control that wraps one or more w:tc elements
+// (w:tr/w:sdt/w:sdtContent/w:tc), which Word uses for cell-level controls.
+func (r *docxReader) readSdtCells(dec *xml.Decoder) ([]*document.Cell, error) {
+	var cells []*document.Cell
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return cells, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "sdtContent":
+				inner, err := r.readSdtCells(dec)
+				if err != nil {
+					return cells, err
+				}
+				cells = append(cells, inner...)
+			case "tc":
+				cell, err := r.readCell(dec)
+				if err != nil {
+					return cells, err
+				}
+				cells = append(cells, cell)
+			case "sdt":
+				inner, err := r.readSdtCells(dec)
+				if err != nil {
+					return cells, err
+				}
+				cells = append(cells, inner...)
+			default:
+				if _, err := r.captureElement(dec, t); err != nil {
+					return cells, err
+				}
+			}
+		case xml.EndElement:
+			return cells, nil
 		}
 	}
 }

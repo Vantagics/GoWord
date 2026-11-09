@@ -58,3 +58,19 @@ Harness on this batch: 10 files. Round-trip opened cleanly in all four reference
 
 - Same gaps as round 1, plus tracked-change rendering does not try to match LibreOffice's combined deleted+inserted string.
 
+## Round 3 — content controls (Open XML SDK)
+
+Samples added under `testdata/word/openxmlsdk/` (MIT): block and run content controls, a content control inside a table cell, data binding, a comment, a header/footer, and a paragraph wrapped in an SDT.
+
+### Found
+
+`sdtCell.docx` stores each cell as `w:tr/w:sdt/w:sdtContent/w:tc`. The row reader skipped that control, so LibreOffice, pandoc, and POI all saw the sentence "This is an sdtCell" and goword saw only whitespace (read and round-trip recall 0). A few ISO-strict SDK files were not kept: pandoc, python-docx, and POI refuse the original package.
+
+### Fixed
+
+Cell-level structured document tags are unwrapped into table cells, so the text is read and survives a rewrite.
+
+### Remaining
+
+LibreOffice is still about one word short on `SDT.docx` and `SDT_Run.docx` (recall 0.875). POI still under-reads `comment.docx` relative to goword, which also emits the comment body.
+
