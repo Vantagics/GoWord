@@ -1066,6 +1066,12 @@ func (r *docxReader) readTable(dec *xml.Decoder) (*document.Table, error) {
 					return tbl, err
 				}
 				tbl.Rows = append(tbl.Rows, row)
+			case "sdt":
+				rows, err := r.readSdtRows(dec)
+				if err != nil {
+					return tbl, err
+				}
+				tbl.Rows = append(tbl.Rows, rows...)
 			default:
 				if _, err := r.captureElement(dec, t); err != nil {
 					return tbl, err
@@ -1198,6 +1204,41 @@ func (r *docxReader) interpretTrPr(row *document.Row, raw string) {
 			row.Style.IsHeader = onOff(se)
 		case "cantSplit":
 			row.Style.CantSplit = onOff(se)
+		}
+	}
+}
+
+// readSdtRows reads a content control that wraps table rows
+// (w:tbl/w:sdt/w:sdtContent/w:tr).
+func (r *docxReader) readSdtRows(dec *xml.Decoder) ([]*document.Row, error) {
+	var rows []*document.Row
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return rows, err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "sdtContent", "sdt":
+				inner, err := r.readSdtRows(dec)
+				if err != nil {
+					return rows, err
+				}
+				rows = append(rows, inner...)
+			case "tr":
+				row, err := r.readRow(dec)
+				if err != nil {
+					return rows, err
+				}
+				rows = append(rows, row)
+			default:
+				if _, err := r.captureElement(dec, t); err != nil {
+					return rows, err
+				}
+			}
+		case xml.EndElement:
+			return rows, nil
 		}
 	}
 }

@@ -112,6 +112,8 @@ Footnote and endnote reference numbers are written into the extracted text next 
 
 pandoc and POI still tokenize note bodies differently from the anchor line. VML text boxes stored inside an escaped drawing attribute (`docx4j/vml-textbox.docx`) still do not round-trip into LibreOffice text.
 
+`FldSimple.docx` round-trip recall against LibreOffice is low because the field is `FILENAME`: LibreOffice refreshes it to the new file name (`out.docx` instead of `FldSimple.docx`). The cached result is preserved; the reference tool re-evaluates the field.
+
 ## Round 7 — text effects, fonts, duplicate hyperlinks
 
 Samples added in `testdata/word/docx4j/`: `w14-texteffects.docx`, `hyperlink-dupe.docx`, `Mac_OSX_Fonts.docx`, `comments-two.docx`, `images-png2.docx`.
@@ -135,4 +137,18 @@ Harness: 5/5 read and round-trip matches on LibreOffice, pandoc, python-docx, an
 ### Remaining
 
 Unchanged from round 7.
+
+## Round 9 — POI bug documents and SDT rows
+
+Samples added in `testdata/word/poi/`: `61470.docx` (East Asian ruby text), `65099.docx`, `Bug66263-paragraph.docx`, `Bug66263-table.docx`, `Bug66988.docx`.
+
+`65099.docx` and `Bug66988.docx` match. `61470.docx` is hiragana plus kanji (`とうきょう` / `東京`); goword keeps both runs, and LibreOffice/POI segment them so word-token recall is 0. `Bug66263-paragraph.docx` is 0.55 versus LibreOffice. `Bug66263-table.docx` was empty in goword and `SDT Cell 1` / `SDT Cell 2` in LibreOffice.
+
+### Fixed
+
+A content control may wrap a whole row (`w:tbl/w:sdt/w:sdtContent/w:tr`). Those rows are now read. `Bug66263-table.docx` extracts `SDT Cell 1` and `SDT Cell 2`.
+
+### Remaining
+
+Ruby text is still one concatenated string. `FILENAME` fields change when LibreOffice opens the round-trip under a new name.
 
