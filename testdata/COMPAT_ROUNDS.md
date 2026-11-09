@@ -152,3 +152,31 @@ A content control may wrap a whole row (`w:tbl/w:sdt/w:sdtContent/w:tr`). Those 
 
 Ruby text is still one concatenated string. `FILENAME` fields change when LibreOffice opens the round-trip under a new name.
 
+## Round 10 — final POI batch and full remeasure
+
+Samples added in `testdata/word/poi/`: `57312.docx`, `58618.docx`, `59030.docx`, `59378.docx`, `bug65738.docx`. All five match every reference tool on read and round-trip.
+
+The harness was then run on the whole corpus (131 documents).
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 121/131 | 124/131 |
+| pandoc | 117/131 | 128/131 |
+| python-docx | 122/131 | 130/131 |
+| Apache POI XWPF | 115/131 | 128/131 |
+
+No further code change in this round. Compared with round 1's before column (70 files on the old main: LibreOffice read 56 ok, POI 47 ok), the library now agrees with the reference readers on a larger and harder set.
+
+### Remaining gaps
+
+- Strict OOXML originals (`mammoth/strict-format.docx`) are read by goword but not by pandoc, python-docx, or POI. The goword rewrite of that file is readable.
+- `docx4j/2010-mcAlternateContent.docx` does not open in LibreOffice.
+- VML text boxed inside an escaped shape attribute (`docx4j/vml-textbox.docx`) still loses its words after a round-trip when LibreOffice or POI reads it.
+- `FILENAME` fields are re-evaluated by LibreOffice to the new file name.
+- Comment bodies are included in goword's text and omitted by several reference extractors, so comment files look like mismatches.
+- Footnote bodies and anchors are not lined up the same way by pandoc and POI.
+- East Asian ruby (`poi/61470.docx`) is kept as both reading and base text in one string; other tools segment it differently.
+- Equation plain text is not TeX (`docx4j/2010-sample1.docx`, `phpword/reader-formula.docx`).
+- Numbering overrides (`poi/NumberingWOverrides.docx`) and a nested move in `poi/Tika-792.docx` are only partly reflected.
+- Picture-only files disagree with pandoc's generated image description.
+
