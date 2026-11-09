@@ -126,3 +126,13 @@ Tabs inside a hyperlink are kept, so the extracted text is `H1`, tab, `1` instea
 
 Picture-only files still disagree with pandoc's image description. Comment bodies are still included.
 
+## Round 8 — PHPWord templates
+
+Samples added in `testdata/word/phpword/`: `Sample_40_TemplateSetComplexValue.docx`, `Sample_41_TemplateSetChart.docx`, `Sample_44_ExtractVariables.docx`, `blank.docx`, `clone-delete-block.docx` (LGPL-3.0).
+
+Harness: 5/5 read and round-trip matches on LibreOffice, pandoc, python-docx, and POI. No code change.
+
+### Remaining
+
+Unchanged from round 7.
+
