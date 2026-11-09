@@ -663,8 +663,21 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 	}
 	for _, ex := range extras {
 		p.Inlines = append(p.Inlines, ex)
-		if raw, ok := ex.(*document.RawXML); ok && raw.Text != "" {
-			p.Runs = append(p.Runs, &document.Run{Text: raw.Text})
+		switch e := ex.(type) {
+		case *document.RawXML:
+			if e.Text != "" {
+				p.Runs = append(p.Runs, &document.Run{Text: e.Text})
+			}
+		case *document.Footnote:
+			// The reference number is not a w:t. Surface it so extracted text
+			// matches what Word, LibreOffice, and POI show at the anchor.
+			if e.ID > 0 {
+				p.Runs = append(p.Runs, &document.Run{Text: strconv.Itoa(e.ID)})
+			}
+		case *document.Endnote:
+			if e.ID > 0 {
+				p.Runs = append(p.Runs, &document.Run{Text: strconv.Itoa(e.ID)})
+			}
 		}
 	}
 }
