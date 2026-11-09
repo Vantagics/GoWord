@@ -53,25 +53,32 @@ func (w *Writer) writeTableCellMargins(b *strings.Builder, ts *style.TableStyle)
 
 func (w *Writer) writeTableRow(b *strings.Builder, row *document.Row) {
 	b.WriteString(`<w:tr>`)
+	if row.PrefixXML != "" {
+		b.WriteString(row.PrefixXML)
+	}
 
-	// Row properties
-	rs := &row.Style
-	if rs.Height > 0 || rs.IsHeader || rs.CantSplit {
-		b.WriteString(`<w:trPr>`)
-		if rs.Height > 0 {
-			rule := rs.HeightRule
-			if rule == "" {
-				rule = "atLeast"
+	// Row properties. Word writes cantSplit, trHeight, tblHeader.
+	if row.RawTrPr != "" {
+		b.WriteString(row.RawTrPr)
+	} else {
+		rs := &row.Style
+		if rs.Height > 0 || rs.IsHeader || rs.CantSplit {
+			b.WriteString(`<w:trPr>`)
+			if rs.CantSplit {
+				b.WriteString(`<w:cantSplit/>`)
 			}
-			b.WriteString(fmt.Sprintf(`<w:trHeight w:val="%d" w:hRule="%s"/>`, rs.Height, rule))
+			if rs.Height > 0 {
+				rule := rs.HeightRule
+				if rule == "" {
+					rule = "atLeast"
+				}
+				b.WriteString(fmt.Sprintf(`<w:trHeight w:val="%d" w:hRule="%s"/>`, rs.Height, rule))
+			}
+			if rs.IsHeader {
+				b.WriteString(`<w:tblHeader/>`)
+			}
+			b.WriteString(`</w:trPr>`)
 		}
-		if rs.IsHeader {
-			b.WriteString(`<w:tblHeader/>`)
-		}
-		if rs.CantSplit {
-			b.WriteString(`<w:cantSplit/>`)
-		}
-		b.WriteString(`</w:trPr>`)
 	}
 
 	for _, cell := range row.Cells {

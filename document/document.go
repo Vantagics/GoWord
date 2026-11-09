@@ -32,28 +32,40 @@ type Document struct {
 	updateFieldsOnOpen bool
 
 	// Internal counters
-	nextRelID    int
-	nextImageID  int
+	nextRelID      int
+	nextImageID    int
 	nextFootnoteID int
 	nextEndnoteID  int
 	nextCommentID  int
 	nextBookmarkID int
+
+	// Package round-trip state. originalParts holds bytes loaded from an
+	// existing .docx. Dirty flags force the writer to rebuild a part after an
+	// API edit; a pure read/save keeps the original styles, numbering, and
+	// settings so Word formatting is not rewritten.
+	originalParts  map[string][]byte
+	mainPart       string
+	loading        bool
+	stylesDirty    bool
+	numberingDirty bool
+	settingsDirty  bool
+	notesDirty     bool
 }
 
 // NumberingStyle defines a custom numbering/list style.
 type NumberingStyle struct {
-	Type   string           // "multilevel", "singleLevel"
+	Type   string // "multilevel", "singleLevel"
 	Levels []NumberingLevel
 }
 
 // NumberingLevel defines formatting for one level of a numbering style.
 type NumberingLevel struct {
-	Format   string // "decimal", "upperLetter", "lowerLetter", "upperRoman", "lowerRoman", "bullet"
-	Text     string // e.g. "%1." or "%1.%2."
-	Left     int    // Left indent in twips
-	Hanging  int    // Hanging indent in twips
-	TabPos   int    // Tab position in twips
-	Font     string // Font name for bullet character
+	Format  string // "decimal", "upperLetter", "lowerLetter", "upperRoman", "lowerRoman", "bullet"
+	Text    string // e.g. "%1." or "%1.%2."
+	Left    int    // Left indent in twips
+	Hanging int    // Hanging indent in twips
+	TabPos  int    // Tab position in twips
+	Font    string // Font name for bullet character
 }
 
 // New creates a new empty Document with default settings.

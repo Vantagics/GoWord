@@ -7,6 +7,11 @@ import (
 )
 
 func (w *Writer) writeNumbering() error {
+	if !w.doc.NumberingDirty() {
+		if _, ok := w.doc.OriginalPart("word/numbering.xml"); ok && w.hasFile("word/numbering.xml") {
+			return nil
+		}
+	}
 	numStyles := w.doc.NumberingStyles()
 	if len(numStyles) == 0 {
 		return nil
@@ -23,10 +28,19 @@ func (w *Writer) writeNumbering() error {
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<w:numbering xmlns:w="%s">`, nsW))
 
-	numID := 1
-	for _, name := range names {
-		ns := numStyles[name]
-		abstractID := numID
+	// CT_Numbering requires every abstractNum before every num. Interleaving
+	// them is a common reason Word offers to repair the file.
+	type numDef struct {
+		id   int
+		name string
+	}
+	defs := make([]numDef, 0, len(names))
+	for i, name := range names {
+		defs = append(defs, numDef{id: i + 1, name: name})
+	}
+	for _, def := range defs {
+		ns := numStyles[def.name]
+		abstractID := def.id
 
 		// Abstract numbering definition
 		b.WriteString(fmt.Sprintf(`<w:abstractNum w:abstractNumId="%d">`, abstractID))
@@ -72,13 +86,11 @@ func (w *Writer) writeNumbering() error {
 			b.WriteString(`</w:lvl>`)
 		}
 		b.WriteString(`</w:abstractNum>`)
-
-		// Numbering instance
-		b.WriteString(fmt.Sprintf(`<w:num w:numId="%d">`, numID))
-		b.WriteString(fmt.Sprintf(`<w:abstractNumId w:val="%d"/>`, abstractID))
+	}
+	for _, def := range defs {
+		b.WriteString(fmt.Sprintf(`<w:num w:numId="%d">`, def.id))
+		b.WriteString(fmt.Sprintf(`<w:abstractNumId w:val="%d"/>`, def.id))
 		b.WriteString(`</w:num>`)
-
-		numID++
 	}
 
 	b.WriteString(`</w:numbering>`)

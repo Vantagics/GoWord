@@ -27,16 +27,28 @@ func (w *Writer) writeInlineImage(b *strings.Builder, img *document.Image) {
 	cx := common.PixelToEmu(width)
 	cy := common.PixelToEmu(height)
 
+	name := w.imageFileName(img)
+	relID := w.imageRel(img)
+	docID := img.ID
+	if docID <= 0 {
+		docID = 1
+	}
+	if name == "" {
+		name = "Picture"
+	}
+
 	b.WriteString(`<w:r>`)
 	b.WriteString(`<w:drawing>`)
-	b.WriteString(fmt.Sprintf(`<wp:inline distT="0" distB="0" distL="0" distR="0">`))
+	b.WriteString(`<wp:inline distT="0" distB="0" distL="0" distR="0">`)
 	b.WriteString(fmt.Sprintf(`<wp:extent cx="%d" cy="%d"/>`, cx, cy))
-	b.WriteString(`<wp:docPr id="` + fmt.Sprintf("%d", img.ID) + `" name="` + escapeXML(img.Name) + `"/>`)
+	b.WriteString(`<wp:effectExtent l="0" t="0" r="0" b="0"/>`)
+	b.WriteString(fmt.Sprintf(`<wp:docPr id="%d" name="%s"/>`, docID, escapeXML(name)))
+	b.WriteString(`<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`)
 	b.WriteString(`<a:graphic>`)
 	b.WriteString(fmt.Sprintf(`<a:graphicData uri="%s">`, nsPIC))
 	b.WriteString(fmt.Sprintf(`<pic:pic xmlns:pic="%s">`, nsPIC))
-	b.WriteString(fmt.Sprintf(`<pic:nvPicPr><pic:cNvPr id="%d" name="%s"/><pic:cNvPicPr/></pic:nvPicPr>`, img.ID, escapeXML(img.Name)))
-	b.WriteString(fmt.Sprintf(`<pic:blipFill><a:blip r:embed="%s"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`, img.RelID))
+	b.WriteString(fmt.Sprintf(`<pic:nvPicPr><pic:cNvPr id="%d" name="%s"/><pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr></pic:nvPicPr>`, docID, escapeXML(name)))
+	b.WriteString(fmt.Sprintf(`<pic:blipFill><a:blip r:embed="%s"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`, relID))
 	b.WriteString(fmt.Sprintf(`<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="%d" cy="%d"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`, cx, cy))
 	b.WriteString(`</pic:pic>`)
 	b.WriteString(`</a:graphicData>`)
@@ -49,36 +61,41 @@ func (w *Writer) writeInlineImage(b *strings.Builder, img *document.Image) {
 func (w *Writer) writeTable(b *strings.Builder, t *document.Table) {
 	b.WriteString(`<w:tbl>`)
 
-	// Table properties
-	b.WriteString(`<w:tblPr>`)
-	if t.StyleName != "" {
-		b.WriteString(fmt.Sprintf(`<w:tblStyle w:val="%s"/>`, escapeXML(t.StyleName)))
-	}
-	ts := &t.Style
-	if ts.Width > 0 {
-		wType := ts.WidthType
-		if wType == "" {
-			wType = "dxa"
-		}
-		b.WriteString(fmt.Sprintf(`<w:tblW w:w="%d" w:type="%s"/>`, ts.Width, wType))
+	// Table properties. CT_TblPr order:
+	// tblStyle, tblW, jc, tblCellSpacing, tblInd, tblBorders, tblLayout, tblCellMar.
+	if t.RawTblPr != "" {
+		b.WriteString(t.RawTblPr)
 	} else {
-		b.WriteString(`<w:tblW w:w="0" w:type="auto"/>`)
+		b.WriteString(`<w:tblPr>`)
+		ts := &t.Style
+		if t.StyleName != "" {
+			b.WriteString(fmt.Sprintf(`<w:tblStyle w:val="%s"/>`, escapeXML(t.StyleName)))
+		}
+		if ts.Width > 0 {
+			wType := ts.WidthType
+			if wType == "" {
+				wType = "dxa"
+			}
+			b.WriteString(fmt.Sprintf(`<w:tblW w:w="%d" w:type="%s"/>`, ts.Width, wType))
+		} else {
+			b.WriteString(`<w:tblW w:w="0" w:type="auto"/>`)
+		}
+		if ts.Alignment != "" {
+			b.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, ts.Alignment))
+		}
+		if ts.CellSpacing > 0 {
+			b.WriteString(fmt.Sprintf(`<w:tblCellSpacing w:w="%d" w:type="dxa"/>`, ts.CellSpacing))
+		}
+		if ts.Indent > 0 {
+			b.WriteString(fmt.Sprintf(`<w:tblInd w:w="%d" w:type="dxa"/>`, ts.Indent))
+		}
+		w.writeTableBorders(b, ts)
+		if ts.Layout != "" {
+			b.WriteString(fmt.Sprintf(`<w:tblLayout w:type="%s"/>`, ts.Layout))
+		}
+		w.writeTableCellMargins(b, ts)
+		b.WriteString(`</w:tblPr>`)
 	}
-	if ts.Alignment != "" {
-		b.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, ts.Alignment))
-	}
-	w.writeTableBorders(b, ts)
-	w.writeTableCellMargins(b, ts)
-	if ts.Layout != "" {
-		b.WriteString(fmt.Sprintf(`<w:tblLayout w:type="%s"/>`, ts.Layout))
-	}
-	if ts.CellSpacing > 0 {
-		b.WriteString(fmt.Sprintf(`<w:tblCellSpacing w:w="%d" w:type="dxa"/>`, ts.CellSpacing))
-	}
-	if ts.Indent > 0 {
-		b.WriteString(fmt.Sprintf(`<w:tblInd w:w="%d" w:type="dxa"/>`, ts.Indent))
-	}
-	b.WriteString(`</w:tblPr>`)
 
 	// Table grid
 	if len(t.Grid) > 0 {

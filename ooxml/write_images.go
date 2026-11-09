@@ -31,13 +31,11 @@ func (w *Writer) writeImages() error {
 			continue
 		}
 
-		imgName := fmt.Sprintf("image%d.%s", img.ID, ext)
-		img.Name = imgName
+		if img.Name == "" && ext != "" && img.MimeType == "" {
+			img.MimeType = imageContentType(ext)
+		}
+		imgName := w.imageFileName(img)
 		imgPath := "word/media/" + imgName
-
-		// Add relationship
-		relID := w.addDocRel(relImage, "media/"+imgName)
-		img.RelID = relID
 
 		if err := w.addZipFile(imgPath, data); err != nil {
 			return err

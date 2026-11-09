@@ -2,7 +2,6 @@ package ooxml
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/VantageDataChat/GoWord/document"
@@ -12,48 +11,68 @@ import (
 func (w *Writer) writeTableCell(b *strings.Builder, cell *document.Cell) {
 	b.WriteString(`<w:tc>`)
 
-	// Cell properties
-	cs := &cell.Style
-	b.WriteString(`<w:tcPr>`)
-	if cs.Width > 0 {
-		wType := cs.WidthType
-		if wType == "" {
-			wType = "dxa"
+	// Cell properties. CT_TcPr order:
+	// tcW, gridSpan, vMerge, tcBorders, shd, noWrap, textDirection, vAlign.
+	if cell.RawTcPr != "" {
+		b.WriteString(cell.RawTcPr)
+	} else {
+		cs := &cell.Style
+		b.WriteString(`<w:tcPr>`)
+		if cs.Width > 0 {
+			wType := cs.WidthType
+			if wType == "" {
+				wType = "dxa"
+			}
+			b.WriteString(fmt.Sprintf(`<w:tcW w:w="%d" w:type="%s"/>`, cs.Width, wType))
 		}
-		b.WriteString(fmt.Sprintf(`<w:tcW w:w="%d" w:type="%s"/>`, cs.Width, wType))
-	}
-	if cs.GridSpan > 1 {
-		b.WriteString(fmt.Sprintf(`<w:gridSpan w:val="%d"/>`, cs.GridSpan))
-	}
-	if cs.VMerge != "" {
-		if cs.VMerge == "restart" {
-			b.WriteString(`<w:vMerge w:val="restart"/>`)
-		} else {
-			b.WriteString(`<w:vMerge/>`)
+		if cs.GridSpan > 1 {
+			b.WriteString(fmt.Sprintf(`<w:gridSpan w:val="%d"/>`, cs.GridSpan))
 		}
+		if cs.VMerge != "" {
+			if cs.VMerge == "restart" {
+				b.WriteString(`<w:vMerge w:val="restart"/>`)
+			} else {
+				b.WriteString(`<w:vMerge/>`)
+			}
+		}
+		writeCellBorders(b, cs)
+		if cs.Shading != nil {
+			pattern := cs.Shading.Pattern
+			if pattern == "" {
+				pattern = "clear"
+			}
+			color := cs.Shading.Color
+			if color == "" {
+				color = "auto"
+			}
+			fill := cs.Shading.Fill
+			if fill == "" {
+				fill = "auto"
+			}
+			b.WriteString(fmt.Sprintf(`<w:shd w:val="%s" w:color="%s" w:fill="%s"/>`, pattern, color, fill))
+		}
+		if cs.NoWrap {
+			b.WriteString(`<w:noWrap/>`)
+		}
+		if cs.TextDirection != "" {
+			b.WriteString(fmt.Sprintf(`<w:textDirection w:val="%s"/>`, cs.TextDirection))
+		}
+		if cs.VAlign != "" {
+			b.WriteString(fmt.Sprintf(`<w:vAlign w:val="%s"/>`, cs.VAlign))
+		}
+		b.WriteString(`</w:tcPr>`)
 	}
-	if cs.VAlign != "" {
-		b.WriteString(fmt.Sprintf(`<w:vAlign w:val="%s"/>`, cs.VAlign))
-	}
-	if cs.Shading != nil {
-		b.WriteString(fmt.Sprintf(`<w:shd w:val="%s" w:color="%s" w:fill="%s"/>`,
-			cs.Shading.Pattern, cs.Shading.Color, cs.Shading.Fill))
-	}
-	if cs.TextDirection != "" {
-		b.WriteString(fmt.Sprintf(`<w:textDirection w:val="%s"/>`, cs.TextDirection))
-	}
-	if cs.NoWrap {
-		b.WriteString(`<w:noWrap/>`)
-	}
-	writeCellBorders(b, cs)
-	b.WriteString(`</w:tcPr>`)
 
-	// Cell content (must have at least one paragraph)
+	// Cell content (must have at least one paragraph). A cell that ends on a
+	// nested table is given an empty paragraph so Word does not repair it.
 	if len(cell.Elements) == 0 {
 		b.WriteString(`<w:p/>`)
 	} else {
 		for _, elem := range cell.Elements {
 			w.writeElementXML(b, elem)
+		}
+		if _, ok := cell.Elements[len(cell.Elements)-1].(*document.Table); ok {
+			b.WriteString(`<w:p/>`)
 		}
 	}
 
@@ -74,30 +93,14 @@ func writeCellBorders(b *strings.Builder, cs *style.CellStyle) {
 
 func (w *Writer) writeListItem(b *strings.Builder, li *document.ListItem) {
 	b.WriteString(`<w:p>`)
-	b.WriteString(`<w:pPr>`)
-	b.WriteString(`<w:numPr>`)
-	b.WriteString(fmt.Sprintf(`<w:ilvl w:val="%d"/>`, li.Depth))
-
-	// Determine numId
-	numID := "1" // default bullet
+	ps := li.Para
+	ps.NumLevel = li.Depth
 	if li.ListStyle != "" {
-		// Sort names for deterministic numbering ID lookup (must match writeNumbering order)
-		ns := w.doc.NumberingStyles()
-		names := make([]string, 0, len(ns))
-		for name := range ns {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for idx, name := range names {
-			if name == li.ListStyle {
-				numID = fmt.Sprintf("%d", idx+1)
-				break
-			}
-		}
+		ps.NumStyleName = li.ListStyle
+	} else {
+		ps.NumStyleName = "1"
 	}
-	b.WriteString(fmt.Sprintf(`<w:numId w:val="%s"/>`, numID))
-	b.WriteString(`</w:numPr>`)
-	b.WriteString(`</w:pPr>`)
+	b.WriteString(paraStyleToXML(&ps, "", w.numID(ps.NumStyleName)))
 
 	b.WriteString(`<w:r>`)
 	rpr := fontStyleToXML(&li.Font, nil)
@@ -125,7 +128,9 @@ func (w *Writer) writeEndnoteRef(b *strings.Builder, en *document.Endnote) {
 
 func (w *Writer) writeBookmark(b *strings.Builder, bm *document.Bookmark) {
 	b.WriteString(fmt.Sprintf(`<w:bookmarkStart w:id="%d" w:name="%s"/>`, bm.ID, escapeXML(bm.Name)))
-	b.WriteString(fmt.Sprintf(`<w:bookmarkEnd w:id="%d"/>`, bm.ID))
+	if !bm.Span {
+		b.WriteString(fmt.Sprintf(`<w:bookmarkEnd w:id="%d"/>`, bm.ID))
+	}
 }
 
 func (w *Writer) writeBookmarkEnd(b *strings.Builder, bm *document.BookmarkEnd) {
@@ -140,7 +145,7 @@ func (w *Writer) writeCommentRef(b *strings.Builder, c *document.Comment) {
 
 func (w *Writer) writePreserveText(b *strings.Builder, pt *document.PreserveText) {
 	b.WriteString(`<w:p>`)
-	ppr := paraStyleToXML(&pt.Para, "")
+	ppr := paraStyleToXML(&pt.Para, "", w.numID(pt.Para.NumStyleName))
 	if ppr != "" {
 		b.WriteString(ppr)
 	}
@@ -227,7 +232,7 @@ func (w *Writer) writeTOC(b *strings.Builder, toc *document.TOC) {
 
 func (w *Writer) writeCheckBox(b *strings.Builder, cb *document.CheckBox) {
 	b.WriteString(`<w:p>`)
-	ppr := paraStyleToXML(&cb.Para, "")
+	ppr := paraStyleToXML(&cb.Para, "", w.numID(cb.Para.NumStyleName))
 	if ppr != "" {
 		b.WriteString(ppr)
 	}
@@ -280,7 +285,7 @@ func (w *Writer) writeLine(b *strings.Builder, l *document.Line) {
 
 func (w *Writer) writeFormField(b *strings.Builder, ff *document.FormField) {
 	b.WriteString(`<w:p>`)
-	ppr := paraStyleToXML(&ff.Para, "")
+	ppr := paraStyleToXML(&ff.Para, "", w.numID(ff.Para.NumStyleName))
 	if ppr != "" {
 		b.WriteString(ppr)
 	}

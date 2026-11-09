@@ -7,6 +7,11 @@ import (
 )
 
 func (w *Writer) writeStyles() error {
+	if !w.doc.StylesDirty() {
+		if _, ok := w.doc.OriginalPart("word/styles.xml"); ok && w.hasFile("word/styles.xml") {
+			return nil
+		}
+	}
 	var b strings.Builder
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<w:styles xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
@@ -41,15 +46,11 @@ func (w *Writer) writeStyles() error {
 		b.WriteString(`<w:pPr><w:keepNext/><w:keepLines/>`)
 		b.WriteString(fmt.Sprintf(`<w:outlineLvl w:val="%d"/>`, i-1))
 		b.WriteString(`</w:pPr>`)
-		b.WriteString(`<w:rPr>`)
 		fontSize := 28 - (i-1)*2
 		if fontSize < 16 {
 			fontSize = 16
 		}
-		b.WriteString(fmt.Sprintf(`<w:sz w:val="%d"/>`, fontSize))
-		b.WriteString(fmt.Sprintf(`<w:szCs w:val="%d"/>`, fontSize))
-		b.WriteString(`<w:b/>`)
-		b.WriteString(`</w:rPr>`)
+		b.WriteString(fmt.Sprintf(`<w:rPr><w:b/><w:bCs/><w:sz w:val="%d"/><w:szCs w:val="%d"/></w:rPr>`, fontSize, fontSize))
 		b.WriteString(`</w:style>`)
 	}
 
@@ -59,7 +60,7 @@ func (w *Writer) writeStyles() error {
 	b.WriteString(`<w:basedOn w:val="Normal"/>`)
 	b.WriteString(`<w:qFormat/>`)
 	b.WriteString(`<w:pPr><w:jc w:val="center"/></w:pPr>`)
-	b.WriteString(`<w:rPr><w:sz w:val="56"/><w:szCs w:val="56"/><w:b/></w:rPr>`)
+	b.WriteString(`<w:rPr><w:b/><w:bCs/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr>`)
 	b.WriteString(`</w:style>`)
 
 	// Hyperlink character style
@@ -121,7 +122,7 @@ func (w *Writer) writeStyles() error {
 		b.WriteString(fmt.Sprintf(`<w:style w:type="paragraph" w:styleId="%s">`, escapeXML(name)))
 		b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(name)))
 		b.WriteString(`<w:basedOn w:val="Normal"/>`)
-		b.WriteString(paraStyleToXML(&ps, ""))
+		b.WriteString(paraStyleToXML(&ps, "", w.numID(ps.NumStyleName)))
 		b.WriteString(`</w:style>`)
 	}
 

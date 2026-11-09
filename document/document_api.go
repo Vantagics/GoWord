@@ -35,21 +35,33 @@ func (d *Document) SetDefaultFontSize(size float64) {
 // AddFontStyle registers a named font style.
 func (d *Document) AddFontStyle(name string, fs style.FontStyle) {
 	d.fontStyles[name] = fs
+	if !d.loading {
+		d.stylesDirty = true
+	}
 }
 
 // AddParagraphStyle registers a named paragraph style.
 func (d *Document) AddParagraphStyle(name string, ps style.ParagraphStyle) {
 	d.paragraphStyles[name] = ps
+	if !d.loading {
+		d.stylesDirty = true
+	}
 }
 
 // AddTableStyle registers a named table style.
 func (d *Document) AddTableStyle(name string, ts style.TableStyle) {
 	d.tableStyles[name] = ts
+	if !d.loading {
+		d.stylesDirty = true
+	}
 }
 
 // AddNumberingStyle registers a named numbering style for lists.
 func (d *Document) AddNumberingStyle(name string, ns NumberingStyle) {
 	d.numberingStyles[name] = ns
+	if !d.loading {
+		d.numberingDirty = true
+	}
 }
 
 // GetFontStyle returns a named font style.
@@ -221,6 +233,9 @@ func (d *Document) WatermarkPictureValue() *WatermarkPicture {
 // are recalculated when the document is opened.
 func (d *Document) SetUpdateFieldsOnOpen(b bool) {
 	d.updateFieldsOnOpen = b
+	if !d.loading {
+		d.settingsDirty = true
+	}
 }
 
 // UpdateFieldsOnOpen returns whether fields are recalculated on open.
@@ -229,27 +244,49 @@ func (d *Document) UpdateFieldsOnOpen() bool {
 }
 
 // Paragraphs returns all paragraphs across all sections (flattened).
+// Paragraphs inside content controls are included. Paragraphs inside tables
+// are not, matching the historical behavior of this method.
 func (d *Document) Paragraphs() []*Paragraph {
 	var result []*Paragraph
-	for _, sec := range d.Sections {
-		for _, elem := range sec.Elements {
-			if p, ok := elem.(*Paragraph); ok {
-				result = append(result, p)
+	var walk func([]Element)
+	walk = func(elems []Element) {
+		for _, elem := range elems {
+			switch e := elem.(type) {
+			case *Paragraph:
+				result = append(result, e)
+			case *Sdt:
+				walk(e.Elements)
 			}
 		}
+	}
+	for _, sec := range d.Sections {
+		walk(sec.Elements)
 	}
 	return result
 }
 
-// Tables returns all tables across all sections (flattened).
+// Tables returns all tables across all sections, including nested tables and
+// tables inside content controls.
 func (d *Document) Tables() []*Table {
 	var result []*Table
-	for _, sec := range d.Sections {
-		for _, elem := range sec.Elements {
-			if t, ok := elem.(*Table); ok {
-				result = append(result, t)
+	var walk func([]Element)
+	walk = func(elems []Element) {
+		for _, elem := range elems {
+			switch e := elem.(type) {
+			case *Table:
+				result = append(result, e)
+				for _, row := range e.Rows {
+					for _, cell := range row.Cells {
+						walk(cell.Elements)
+					}
+				}
+			case *Sdt:
+				walk(e.Elements)
 			}
 		}
+	}
+	for _, sec := range d.Sections {
+		walk(sec.Elements)
 	}
 	return result
 }
@@ -257,24 +294,81 @@ func (d *Document) Tables() []*Table {
 // ExtractText returns all text content from the document as a single string.
 func (d *Document) ExtractText() string {
 	var b strings.Builder
+	ctr := map[string][]int{}
 	for _, sec := range d.Sections {
 		for _, elem := range sec.Elements {
-			extractElementText(&b, elem)
+			extractElementText(&b, elem, d, ctr)
+		}
+		for _, h := range sec.Headers {
+			for _, elem := range h.Elements {
+				extractElementText(&b, elem, d, ctr)
+			}
+		}
+		for _, f := range sec.Footers {
+			for _, elem := range f.Elements {
+				extractElementText(&b, elem, d, ctr)
+			}
+		}
+	}
+	for _, fn := range d.footnotes {
+		for _, elem := range fn.Elements {
+			extractElementText(&b, elem, d, ctr)
+		}
+	}
+	for _, en := range d.endnotes {
+		for _, elem := range en.Elements {
+			extractElementText(&b, elem, d, ctr)
+		}
+	}
+	for _, c := range d.comments {
+		if c.Text != "" {
+			b.WriteString(c.Text)
+			b.WriteString("\n")
+		}
+		for _, elem := range c.Elements {
+			extractElementText(&b, elem, d, ctr)
 		}
 	}
 	return b.String()
 }
 
-func extractElementText(b *strings.Builder, elem Element) {
+func writeRunText(b *strings.Builder, run *Run) {
+	if run.Tab {
+		b.WriteByte('\t')
+	}
+	b.WriteString(run.Text)
+	if run.Break && run.BreakType == "textWrapping" {
+		b.WriteByte('\n')
+	}
+}
+
+func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map[string][]int) {
 	switch e := elem.(type) {
 	case *Paragraph:
+		if label := doc.listLabel(e.Style.NumStyleName, e.Style.NumLevel, ctr); label != "" {
+			b.WriteString(label)
+		}
 		for _, run := range e.Runs {
-			b.WriteString(run.Text)
+			writeRunText(b, run)
 		}
 		b.WriteString("\n")
+	case *Run:
+		writeRunText(b, e)
+	case *Tab:
+		b.WriteByte('\t')
+	case *RawXML:
+		b.WriteString(e.Text)
+	case *Field:
+		if e.Result != "" {
+			b.WriteString(e.Result)
+		}
+	case *Sdt:
+		for _, child := range e.Elements {
+			extractElementText(b, child, doc, ctr)
+		}
 	case *TextRun:
 		for _, child := range e.Elements {
-			extractElementText(b, child)
+			extractElementText(b, child, doc, ctr)
 		}
 	case *TextBreak:
 		for i := 0; i < e.Count; i++ {
@@ -283,13 +377,16 @@ func extractElementText(b *strings.Builder, elem Element) {
 	case *Hyperlink:
 		b.WriteString(e.Text)
 	case *ListItem:
+		if label := doc.listLabel(e.ListStyle, e.Depth, ctr); label != "" {
+			b.WriteString(label)
+		}
 		b.WriteString(e.Text)
 		b.WriteString("\n")
 	case *Table:
 		for _, row := range e.Rows {
 			for ci, cell := range row.Cells {
 				for _, ce := range cell.Elements {
-					extractElementText(b, ce)
+					extractElementText(b, ce, doc, ctr)
 				}
 				if ci < len(row.Cells)-1 {
 					b.WriteString("\t")
@@ -298,6 +395,9 @@ func extractElementText(b *strings.Builder, elem Element) {
 		}
 	case *CheckBox:
 		b.WriteString(e.Text)
+	case *Footnote, *Endnote:
+		// Body text is appended from the document note lists so a note that is
+		// both a section element and a registered note is not counted twice.
 	}
 }
 

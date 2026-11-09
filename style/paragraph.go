@@ -2,33 +2,33 @@ package style
 
 // Alignment constants for paragraph alignment.
 const (
-	AlignLeft    = "left"
-	AlignCenter  = "center"
-	AlignRight   = "right"
-	AlignBoth    = "both" // Justified
+	AlignLeft       = "left"
+	AlignCenter     = "center"
+	AlignRight      = "right"
+	AlignBoth       = "both" // Justified
 	AlignDistribute = "distribute"
 )
 
 // ParagraphStyle represents paragraph-level formatting.
 type ParagraphStyle struct {
-	Alignment     string // AlignLeft, AlignCenter, AlignRight, AlignBoth
-	SpaceBefore   int    // Space before paragraph in twips
-	SpaceAfter    int    // Space after paragraph in twips
-	LineSpacing   int    // Line spacing in twips (240 = single)
-	LineRule      string // "auto", "exact", "atLeast"
-	Indent        int    // Left indent in twips
-	IndentRight   int    // Right indent in twips
-	FirstLine     int    // First line indent in twips
-	Hanging       int    // Hanging indent in twips
-	KeepNext      bool   // Keep with next paragraph
-	KeepLines     bool   // Keep lines together
-	PageBreakBefore bool // Page break before paragraph
-	WidowControl  bool   // Widow/orphan control
-	TabStops      []TabStop
-	Borders       *ParagraphBorders
-	Shading       *Shading
-	NumStyleName  string // Numbering style name for lists
-	NumLevel      int    // Numbering level for lists
+	Alignment       string // AlignLeft, AlignCenter, AlignRight, AlignBoth
+	SpaceBefore     int    // Space before paragraph in twips
+	SpaceAfter      int    // Space after paragraph in twips
+	LineSpacing     int    // Line spacing in twips (240 = single)
+	LineRule        string // "auto", "exact", "atLeast"
+	Indent          int    // Left indent in twips
+	IndentRight     int    // Right indent in twips
+	FirstLine       int    // First line indent in twips
+	Hanging         int    // Hanging indent in twips
+	KeepNext        bool   // Keep with next paragraph
+	KeepLines       bool   // Keep lines together
+	PageBreakBefore bool   // Page break before paragraph
+	WidowControl    bool   // Widow/orphan control
+	TabStops        []TabStop
+	Borders         *ParagraphBorders
+	Shading         *Shading
+	NumStyleName    string // Numbering style name for lists
+	NumLevel        int    // Numbering level for lists
 }
 
 // TabStop defines a tab stop position and type.

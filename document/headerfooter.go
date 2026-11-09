@@ -6,6 +6,7 @@ import (
 
 // AddText adds text to a header.
 func (h *Header) AddText(text string, fontStyle *style.FontStyle, paraStyle *style.ParagraphStyle) *Paragraph {
+	h.RawPart = nil
 	p := &Paragraph{doc: h.doc}
 	if paraStyle != nil {
 		p.Style = *paraStyle
@@ -21,6 +22,7 @@ func (h *Header) AddText(text string, fontStyle *style.FontStyle, paraStyle *sty
 
 // AddPreserveText adds preserve text (page numbers etc.) to a header.
 func (h *Header) AddPreserveText(text string, fontStyle *style.FontStyle, paraStyle *style.ParagraphStyle) *PreserveText {
+	h.RawPart = nil
 	pt := &PreserveText{Text: text}
 	if fontStyle != nil {
 		pt.Font = *fontStyle
@@ -34,6 +36,7 @@ func (h *Header) AddPreserveText(text string, fontStyle *style.FontStyle, paraSt
 
 // AddImage adds an image to a header.
 func (h *Header) AddImage(src string, imgStyle *style.ImageStyle) *Image {
+	h.RawPart = nil
 	img := &Image{
 		Source: src,
 		RelID:  h.doc.allocRelID(),
@@ -49,6 +52,7 @@ func (h *Header) AddImage(src string, imgStyle *style.ImageStyle) *Image {
 
 // AddTable adds a table to a header.
 func (h *Header) AddTable(tableStyle *style.TableStyle) *Table {
+	h.RawPart = nil
 	t := &Table{doc: h.doc}
 	if tableStyle != nil {
 		t.Style = *tableStyle
@@ -59,6 +63,7 @@ func (h *Header) AddTable(tableStyle *style.TableStyle) *Table {
 
 // AddText adds text to a footer.
 func (f *Footer) AddText(text string, fontStyle *style.FontStyle, paraStyle *style.ParagraphStyle) *Paragraph {
+	f.RawPart = nil
 	p := &Paragraph{doc: f.doc}
 	if paraStyle != nil {
 		p.Style = *paraStyle
@@ -74,6 +79,7 @@ func (f *Footer) AddText(text string, fontStyle *style.FontStyle, paraStyle *sty
 
 // AddPreserveText adds preserve text (page numbers etc.) to a footer.
 func (f *Footer) AddPreserveText(text string, fontStyle *style.FontStyle, paraStyle *style.ParagraphStyle) *PreserveText {
+	f.RawPart = nil
 	pt := &PreserveText{Text: text}
 	if fontStyle != nil {
 		pt.Font = *fontStyle
@@ -87,6 +93,7 @@ func (f *Footer) AddPreserveText(text string, fontStyle *style.FontStyle, paraSt
 
 // AddImage adds an image to a footer.
 func (f *Footer) AddImage(src string, imgStyle *style.ImageStyle) *Image {
+	f.RawPart = nil
 	img := &Image{
 		Source: src,
 		RelID:  f.doc.allocRelID(),
@@ -102,6 +109,7 @@ func (f *Footer) AddImage(src string, imgStyle *style.ImageStyle) *Image {
 
 // AddTable adds a table to a footer.
 func (f *Footer) AddTable(tableStyle *style.TableStyle) *Table {
+	f.RawPart = nil
 	t := &Table{doc: f.doc}
 	if tableStyle != nil {
 		t.Style = *tableStyle
@@ -112,6 +120,9 @@ func (f *Footer) AddTable(tableStyle *style.TableStyle) *Table {
 
 // AddText adds text to a footnote.
 func (fn *Footnote) AddText(text string, fontStyle *style.FontStyle) {
+	if fn.doc != nil {
+		fn.doc.notesDirty = true
+	}
 	run := &Run{Text: text}
 	if fontStyle != nil {
 		run.Style = *fontStyle
@@ -122,6 +133,9 @@ func (fn *Footnote) AddText(text string, fontStyle *style.FontStyle) {
 
 // AddLink adds a hyperlink to a footnote.
 func (fn *Footnote) AddLink(url, text string) *Hyperlink {
+	if fn.doc != nil {
+		fn.doc.notesDirty = true
+	}
 	h := &Hyperlink{
 		URL:   url,
 		Text:  text,
@@ -133,11 +147,17 @@ func (fn *Footnote) AddLink(url, text string) *Hyperlink {
 
 // AddTextBreak adds a line break to a footnote.
 func (fn *Footnote) AddTextBreak() {
+	if fn.doc != nil {
+		fn.doc.notesDirty = true
+	}
 	fn.Elements = append(fn.Elements, &TextBreak{Count: 1})
 }
 
 // AddText adds text to an endnote.
 func (en *Endnote) AddText(text string, fontStyle *style.FontStyle) {
+	if en.doc != nil {
+		en.doc.notesDirty = true
+	}
 	run := &Run{Text: text}
 	if fontStyle != nil {
 		run.Style = *fontStyle
@@ -148,6 +168,9 @@ func (en *Endnote) AddText(text string, fontStyle *style.FontStyle) {
 
 // AddLink adds a hyperlink to an endnote.
 func (en *Endnote) AddLink(url, text string) *Hyperlink {
+	if en.doc != nil {
+		en.doc.notesDirty = true
+	}
 	h := &Hyperlink{
 		URL:   url,
 		Text:  text,
@@ -159,5 +182,8 @@ func (en *Endnote) AddLink(url, text string) *Hyperlink {
 
 // AddTextBreak adds a line break to an endnote.
 func (en *Endnote) AddTextBreak() {
+	if en.doc != nil {
+		en.doc.notesDirty = true
+	}
 	en.Elements = append(en.Elements, &TextBreak{Count: 1})
 }

@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/VantageDataChat/GoWord/document"
@@ -17,34 +19,49 @@ import (
 
 // Namespaces used in OOXML documents.
 const (
-	nsW    = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-	nsR    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-	nsWP   = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-	nsA    = "http://schemas.openxmlformats.org/drawingml/2006/main"
-	nsPIC  = "http://schemas.openxmlformats.org/drawingml/2006/picture"
-	nsMC   = "http://schemas.openxmlformats.org/markup-compatibility/2006"
-	nsCP   = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-	nsDC   = "http://purl.org/dc/elements/1.1/"
-	nsDCT  = "http://purl.org/dc/terms/"
-	nsXSI  = "http://www.w3.org/2001/XMLSchema-instance"
-	nsCT   = "http://schemas.openxmlformats.org/package/2006/content-types"
-	nsEP   = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
-	nsVT   = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
+	nsW   = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+	nsR   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+	nsWP  = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+	nsA   = "http://schemas.openxmlformats.org/drawingml/2006/main"
+	nsPIC = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+	nsMC  = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+	nsCP  = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+	nsDC  = "http://purl.org/dc/elements/1.1/"
+	nsDCT = "http://purl.org/dc/terms/"
+	nsXSI = "http://www.w3.org/2001/XMLSchema-instance"
+	nsCT  = "http://schemas.openxmlformats.org/package/2006/content-types"
+	nsEP  = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+	nsVT  = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
 
-	relDoc       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
-	relCoreProps = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
-	relExtProps  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
-	relStyles    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
-	relNumbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"
-	relFontTable = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable"
-	relSettings  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings"
-	relImage     = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-	relHyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
-	relHeader    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
-	relFooter    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
-	relFootnotes = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
-	relEndnotes  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes"
-	relComments  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+	relDoc         = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+	relCoreProps   = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
+	relExtProps    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
+	relStyles      = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
+	relNumbering   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"
+	relFontTable   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable"
+	relSettings    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings"
+	relImage       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+	relHyperlink   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+	relHeader      = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
+	relFooter      = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
+	relFootnotes   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
+	relEndnotes    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes"
+	relComments    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+	relTheme       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+	relWebSettings = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings"
+
+	nsM    = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+	nsO    = "urn:schemas-microsoft-com:office:office"
+	nsV    = "urn:schemas-microsoft-com:vml"
+	nsW10  = "urn:schemas-microsoft-com:office:word"
+	nsW14  = "http://schemas.microsoft.com/office/word/2010/wordml"
+	nsW15  = "http://schemas.microsoft.com/office/word/2012/wordml"
+	nsWP14 = "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+	nsWPC  = "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+	nsWPG  = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+	nsWPI  = "http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+	nsWNE  = "http://schemas.microsoft.com/office/word/2006/wordml"
+	nsWPS  = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 )
 
 // Writer writes a Document to .docx format.
@@ -65,6 +82,25 @@ type Writer struct {
 
 	// Watermark tracking
 	watermarkWritten bool
+
+	// Buffered package parts. addZipFile overwrites an existing name so a
+	// regenerated part replaces the copy taken from the original package.
+	files     []memFile
+	fileIndex map[string]int
+
+	// cur, when non-nil, receives relationships for the part being written
+	// (a header or footer) instead of document.xml.rels.
+	cur *relCollector
+}
+
+type memFile struct {
+	name string
+	data []byte
+}
+
+type relCollector struct {
+	rels []relationship
+	next int
 }
 
 type relationship struct {
@@ -80,10 +116,12 @@ type contentTypeOverride struct {
 }
 
 type headerFooterPart struct {
-	filename string
-	content  []byte
-	header   *document.Header // non-nil for header parts
-	footer   *document.Footer // non-nil for footer parts
+	filename  string
+	content   []byte
+	header    *document.Header // non-nil for header parts
+	footer    *document.Footer // non-nil for footer parts
+	rels      []relationship
+	generated bool
 }
 
 // Save writes the document to a file.
@@ -107,14 +145,30 @@ func WriteToBytes(doc *document.Document) ([]byte, error) {
 		doc:          doc,
 		buf:          &bytes.Buffer{},
 		nextDocRelID: 1,
+		fileIndex:    map[string]int{},
 	}
-	w.zw = zip.NewWriter(w.buf)
 
 	if err := w.write(); err != nil {
 		return nil, err
 	}
 
-	if err := w.zw.Close(); err != nil {
+	zw := zip.NewWriter(w.buf)
+	for pass := 0; pass < 2; pass++ {
+		for _, f := range w.files {
+			isCT := f.name == "[Content_Types].xml"
+			if pass == 0 && !isCT || pass == 1 && isCT {
+				continue
+			}
+			fw, err := zw.Create(f.name)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := fw.Write(f.data); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := zw.Close(); err != nil {
 		return nil, err
 	}
 
@@ -132,13 +186,12 @@ func WriteToWriter(doc *document.Document, out io.Writer) error {
 }
 
 func (w *Writer) write() error {
+	w.copyOriginalParts()
+	w.seedDocRels()
+
 	// Pre-generate header/footer parts
 	w.generateHeaderFooterParts()
 
-	// 1. [Content_Types].xml
-	if err := w.writeContentTypes(); err != nil {
-		return err
-	}
 	// 2. _rels/.rels
 	if err := w.writeRootRels(); err != nil {
 		return err
@@ -179,16 +232,27 @@ func (w *Writer) write() error {
 	if err := w.writeImages(); err != nil {
 		return err
 	}
-	// 12. Header/footer parts
+	// 12. word/fontTable.xml when the package does not already have one
+	if err := w.writeFontTable(); err != nil {
+		return err
+	}
+	// 13. Header/footer parts
 	if err := w.writeHeaderFooterFiles(); err != nil {
 		return err
 	}
-	// 13. word/document.xml (main content)
+	if err := w.writeHeaderFooterRels(); err != nil {
+		return err
+	}
+	// 14. word/document.xml (main content)
 	if err := w.writeDocument(); err != nil {
 		return err
 	}
-	// 14. word/_rels/document.xml.rels
+	// 15. word/_rels/document.xml.rels
 	if err := w.writeDocRels(); err != nil {
+		return err
+	}
+	// Content types last, once every part is known.
+	if err := w.writeContentTypes(); err != nil {
 		return err
 	}
 
@@ -196,26 +260,57 @@ func (w *Writer) write() error {
 }
 
 func (w *Writer) addDocRel(relType, target string) string {
-	id := fmt.Sprintf("rId%d", w.nextDocRelID)
-	w.nextDocRelID++
-	w.docRels = append(w.docRels, relationship{ID: id, Type: relType, Target: target})
-	return id
+	return w.addRel(relType, target, "")
 }
 
 func (w *Writer) addDocRelExternal(relType, target string) string {
+	return w.addRel(relType, target, "External")
+}
+
+func (w *Writer) addRel(relType, target, mode string) string {
+	if w.cur != nil {
+		w.cur.next++
+		id := fmt.Sprintf("rId%d", w.cur.next)
+		w.cur.rels = append(w.cur.rels, relationship{ID: id, Type: relType, Target: target, TargetMode: mode})
+		return id
+	}
 	id := fmt.Sprintf("rId%d", w.nextDocRelID)
 	w.nextDocRelID++
-	w.docRels = append(w.docRels, relationship{ID: id, Type: relType, Target: target, TargetMode: "External"})
+	w.docRels = append(w.docRels, relationship{ID: id, Type: relType, Target: target, TargetMode: mode})
 	return id
 }
 
-func (w *Writer) addZipFile(name string, data []byte) error {
-	fw, err := w.zw.Create(name)
-	if err != nil {
-		return err
+// ensureRel reuses a document relationship with the same type and target so
+// identifiers loaded from an existing package stay valid.
+func (w *Writer) ensureRel(relType, target string) string {
+	for _, rel := range w.docRels {
+		if rel.Type == relType && rel.Target == target && rel.TargetMode == "" {
+			return rel.ID
+		}
 	}
-	_, err = fw.Write(data)
-	return err
+	return w.addDocRel(relType, target)
+}
+
+func (w *Writer) addZipFile(name string, data []byte) error {
+	if w.fileIndex == nil {
+		w.fileIndex = map[string]int{}
+	}
+	cp := append([]byte(nil), data...)
+	if i, ok := w.fileIndex[name]; ok {
+		w.files[i].data = cp
+		return nil
+	}
+	w.fileIndex[name] = len(w.files)
+	w.files = append(w.files, memFile{name: name, data: cp})
+	return nil
+}
+
+func (w *Writer) hasFile(name string) bool {
+	if w.fileIndex == nil {
+		return false
+	}
+	_, ok := w.fileIndex[name]
+	return ok
 }
 
 func xmlHeader() string {
@@ -230,115 +325,114 @@ func escapeXML(s string) string {
 }
 
 // fontStyleToXML writes font style (rPr) XML.
+// Child order follows ECMA-376 CT_RPr / EG_RPrBase. Word repairs documents
+// whose rPr children are out of that sequence.
 func fontStyleToXML(fs *style.FontStyle, defaultFont *style.FontStyle) string {
 	if fs == nil && defaultFont == nil {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString("<w:rPr>")
-
 	f := fs
 	if f == nil {
 		f = defaultFont
 	}
 	if f == nil {
-		b.WriteString("</w:rPr>")
-		return b.String()
+		return ""
 	}
 
-	if f.Name != "" {
-		b.WriteString(fmt.Sprintf(`<w:rFonts w:ascii="%s" w:hAnsi="%s" w:cs="%s"`, escapeXML(f.Name), escapeXML(f.Name), escapeXML(f.Name)))
+	var inner strings.Builder
+	if f.Name != "" || f.NameEastAsia != "" {
+		inner.WriteString(`<w:rFonts`)
+		if f.Name != "" {
+			inner.WriteString(fmt.Sprintf(` w:ascii="%s" w:hAnsi="%s"`, escapeXML(f.Name), escapeXML(f.Name)))
+		}
 		if f.NameEastAsia != "" {
-			b.WriteString(fmt.Sprintf(` w:eastAsia="%s"`, escapeXML(f.NameEastAsia)))
+			inner.WriteString(fmt.Sprintf(` w:eastAsia="%s"`, escapeXML(f.NameEastAsia)))
 		}
-		b.WriteString(`/>`)
-	} else if f.NameEastAsia != "" {
-		b.WriteString(fmt.Sprintf(`<w:rFonts w:eastAsia="%s"/>`, escapeXML(f.NameEastAsia)))
+		if f.Name != "" {
+			inner.WriteString(fmt.Sprintf(` w:cs="%s"`, escapeXML(f.Name)))
+		}
+		inner.WriteString(`/>`)
 	}
+	writeToggle(&inner, f.Bold, f.Off, "b")
 	if f.Bold {
-		b.WriteString(`<w:b/>`)
+		inner.WriteString(`<w:bCs/>`)
+	} else {
+		writeToggle(&inner, false, f.Off, "bCs")
 	}
+	writeToggle(&inner, f.Italic, f.Off, "i")
 	if f.Italic {
-		b.WriteString(`<w:i/>`)
+		inner.WriteString(`<w:iCs/>`)
+	} else {
+		writeToggle(&inner, false, f.Off, "iCs")
 	}
-	if f.Strikethrough {
-		b.WriteString(`<w:strike/>`)
-	}
-	if f.DoubleStrikethrough {
-		b.WriteString(`<w:dstrike/>`)
-	}
-	if f.Outline {
-		b.WriteString(`<w:outline/>`)
-	}
-	if f.Shadow {
-		b.WriteString(`<w:shadow/>`)
-	}
-	if f.Emboss {
-		b.WriteString(`<w:emboss/>`)
-	}
-	if f.Imprint {
-		b.WriteString(`<w:imprint/>`)
-	}
-	if f.Underline != "" && f.Underline != "none" {
-		if f.UnderlineColor != "" {
-			b.WriteString(fmt.Sprintf(`<w:u w:val="%s" w:color="%s"/>`, f.Underline, f.UnderlineColor))
-		} else {
-			b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
-		}
-	}
-	if f.TextEffect != "" {
-		b.WriteString(fmt.Sprintf(`<w:effect w:val="%s"/>`, f.TextEffect))
-	}
+	writeToggle(&inner, f.AllCaps, f.Off, "caps")
+	writeToggle(&inner, f.SmallCaps, f.Off, "smallCaps")
+	writeToggle(&inner, f.Strikethrough, f.Off, "strike")
+	writeToggle(&inner, f.DoubleStrikethrough, f.Off, "dstrike")
+	writeToggle(&inner, f.Outline, f.Off, "outline")
+	writeToggle(&inner, f.Shadow, f.Off, "shadow")
+	writeToggle(&inner, f.Emboss, f.Off, "emboss")
+	writeToggle(&inner, f.Imprint, f.Off, "imprint")
+	writeToggle(&inner, f.NoProof, f.Off, "noProof")
+	writeToggle(&inner, f.Hidden, f.Off, "vanish")
 	if f.Color != "" {
-		b.WriteString(fmt.Sprintf(`<w:color w:val="%s"/>`, f.Color))
-	}
-	if f.HighlightColor != "" {
-		b.WriteString(fmt.Sprintf(`<w:highlight w:val="%s"/>`, f.HighlightColor))
-	}
-	if f.Size > 0 {
-		hp := int(f.Size * 2)
-		b.WriteString(fmt.Sprintf(`<w:sz w:val="%d"/>`, hp))
-		b.WriteString(fmt.Sprintf(`<w:szCs w:val="%d"/>`, hp))
-	}
-	if f.SuperScript {
-		b.WriteString(`<w:vertAlign w:val="superscript"/>`)
-	}
-	if f.SubScript {
-		b.WriteString(`<w:vertAlign w:val="subscript"/>`)
-	}
-	if f.AllCaps {
-		b.WriteString(`<w:caps/>`)
-	}
-	if f.SmallCaps {
-		b.WriteString(`<w:smallCaps/>`)
-	}
-	if f.Hidden {
-		b.WriteString(`<w:vanish/>`)
-	}
-	if f.NoProof {
-		b.WriteString(`<w:noProof/>`)
+		inner.WriteString(fmt.Sprintf(`<w:color w:val="%s"/>`, f.Color))
 	}
 	if f.Spacing != 0 {
 		sp := int(f.Spacing * 20) // points to twips
-		b.WriteString(fmt.Sprintf(`<w:spacing w:val="%d"/>`, sp))
+		inner.WriteString(fmt.Sprintf(`<w:spacing w:val="%d"/>`, sp))
 	}
 	if f.Kerning > 0 {
 		hp := int(f.Kerning * 2) // points to half-points
-		b.WriteString(fmt.Sprintf(`<w:kern w:val="%d"/>`, hp))
+		inner.WriteString(fmt.Sprintf(`<w:kern w:val="%d"/>`, hp))
 	}
-	if f.RightToLeft {
-		b.WriteString(`<w:rtl/>`)
+	if f.Size > 0 {
+		hp := int(f.Size * 2)
+		inner.WriteString(fmt.Sprintf(`<w:sz w:val="%d"/>`, hp))
+		inner.WriteString(fmt.Sprintf(`<w:szCs w:val="%d"/>`, hp))
 	}
+	if f.HighlightColor != "" {
+		inner.WriteString(fmt.Sprintf(`<w:highlight w:val="%s"/>`, f.HighlightColor))
+	}
+	if f.Underline != "" && f.Underline != "none" {
+		if f.UnderlineColor != "" {
+			inner.WriteString(fmt.Sprintf(`<w:u w:val="%s" w:color="%s"/>`, f.Underline, f.UnderlineColor))
+		} else {
+			inner.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
+		}
+	}
+	if f.TextEffect != "" {
+		inner.WriteString(fmt.Sprintf(`<w:effect w:val="%s"/>`, f.TextEffect))
+	}
+	if f.SuperScript {
+		inner.WriteString(`<w:vertAlign w:val="superscript"/>`)
+	} else if f.SubScript {
+		inner.WriteString(`<w:vertAlign w:val="subscript"/>`)
+	}
+	writeToggle(&inner, f.RightToLeft, f.Off, "rtl")
 	if f.Lang != "" {
-		b.WriteString(fmt.Sprintf(`<w:lang w:val="%s"/>`, f.Lang))
+		inner.WriteString(fmt.Sprintf(`<w:lang w:val="%s"/>`, f.Lang))
 	}
+	if inner.Len() == 0 {
+		return ""
+	}
+	return "<w:rPr>" + inner.String() + "</w:rPr>"
+}
 
-	b.WriteString("</w:rPr>")
-	return b.String()
+func writeToggle(b *strings.Builder, on bool, off map[string]bool, tag string) {
+	if on {
+		b.WriteString("<w:" + tag + "/>")
+		return
+	}
+	if off != nil && off[tag] {
+		b.WriteString(`<w:` + tag + ` w:val="0"/>`)
+	}
 }
 
 // paraStyleToXML writes paragraph style (pPr) XML.
-func paraStyleToXML(ps *style.ParagraphStyle, styleName string) string {
+// Child order follows ECMA-376 CT_PPrBase. numID, when non-empty, is the
+// numeric numbering id; otherwise a numeric NumStyleName is used as-is.
+func paraStyleToXML(ps *style.ParagraphStyle, styleName string, numID ...string) string {
 	if ps == nil && styleName == "" {
 		return ""
 	}
@@ -350,8 +444,60 @@ func paraStyleToXML(ps *style.ParagraphStyle, styleName string) string {
 	}
 
 	if ps != nil {
-		if ps.Alignment != "" && ps.Alignment != style.AlignLeft {
-			b.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, ps.Alignment))
+		if ps.KeepNext {
+			b.WriteString(`<w:keepNext/>`)
+		}
+		if ps.KeepLines {
+			b.WriteString(`<w:keepLines/>`)
+		}
+		if ps.PageBreakBefore {
+			b.WriteString(`<w:pageBreakBefore/>`)
+		}
+		if ps.WidowControl {
+			b.WriteString(`<w:widowControl/>`)
+		}
+		id := ""
+		if len(numID) > 0 {
+			id = numID[0]
+		} else if isDigits(ps.NumStyleName) {
+			id = ps.NumStyleName
+		}
+		if id != "" {
+			b.WriteString("<w:numPr>")
+			b.WriteString(fmt.Sprintf(`<w:ilvl w:val="%d"/>`, ps.NumLevel))
+			b.WriteString(fmt.Sprintf(`<w:numId w:val="%s"/>`, id))
+			b.WriteString("</w:numPr>")
+		}
+		writeBorders(&b, ps.Borders)
+		if ps.Shading != nil {
+			pattern := ps.Shading.Pattern
+			if pattern == "" {
+				pattern = "clear"
+			}
+			color := ps.Shading.Color
+			if color == "" {
+				color = "auto"
+			}
+			fill := ps.Shading.Fill
+			if fill == "" {
+				fill = "auto"
+			}
+			b.WriteString(fmt.Sprintf(`<w:shd w:val="%s" w:color="%s" w:fill="%s"/>`, pattern, color, fill))
+		}
+		if len(ps.TabStops) > 0 {
+			b.WriteString("<w:tabs>")
+			for _, ts := range ps.TabStops {
+				tabType := ts.Type
+				if tabType == "" {
+					tabType = "left"
+				}
+				leader := ts.Leader
+				if leader == "" {
+					leader = "none"
+				}
+				b.WriteString(fmt.Sprintf(`<w:tab w:val="%s" w:pos="%d" w:leader="%s"/>`, tabType, ts.Position, leader))
+			}
+			b.WriteString("</w:tabs>")
 		}
 		if ps.SpaceBefore > 0 || ps.SpaceAfter > 0 || ps.LineSpacing > 0 {
 			b.WriteString("<w:spacing")
@@ -386,48 +532,28 @@ func paraStyleToXML(ps *style.ParagraphStyle, styleName string) string {
 			}
 			b.WriteString("/>")
 		}
-		if ps.KeepNext {
-			b.WriteString(`<w:keepNext/>`)
+		if ps.Alignment != "" && ps.Alignment != style.AlignLeft {
+			b.WriteString(fmt.Sprintf(`<w:jc w:val="%s"/>`, ps.Alignment))
 		}
-		if ps.KeepLines {
-			b.WriteString(`<w:keepLines/>`)
-		}
-		if ps.PageBreakBefore {
-			b.WriteString(`<w:pageBreakBefore/>`)
-		}
-		if ps.WidowControl {
-			b.WriteString(`<w:widowControl/>`)
-		}
-		if ps.NumStyleName != "" {
-			b.WriteString("<w:numPr>")
-			b.WriteString(fmt.Sprintf(`<w:ilvl w:val="%d"/>`, ps.NumLevel))
-			b.WriteString(fmt.Sprintf(`<w:numId w:val="%s"/>`, ps.NumStyleName))
-			b.WriteString("</w:numPr>")
-		}
-		if ps.Shading != nil {
-			b.WriteString(fmt.Sprintf(`<w:shd w:val="%s" w:color="%s" w:fill="%s"/>`,
-				ps.Shading.Pattern, ps.Shading.Color, ps.Shading.Fill))
-		}
-		if len(ps.TabStops) > 0 {
-			b.WriteString("<w:tabs>")
-			for _, ts := range ps.TabStops {
-				tabType := ts.Type
-				if tabType == "" {
-					tabType = "left"
-				}
-				leader := ts.Leader
-				if leader == "" {
-					leader = "none"
-				}
-				b.WriteString(fmt.Sprintf(`<w:tab w:val="%s" w:pos="%d" w:leader="%s"/>`, tabType, ts.Position, leader))
-			}
-			b.WriteString("</w:tabs>")
-		}
-		writeBorders(&b, ps.Borders)
 	}
 
+	if b.Len() == len("<w:pPr>") {
+		return ""
+	}
 	b.WriteString("</w:pPr>")
 	return b.String()
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func writeBorders(b *strings.Builder, borders *style.ParagraphBorders) {
@@ -435,9 +561,10 @@ func writeBorders(b *strings.Builder, borders *style.ParagraphBorders) {
 		return
 	}
 	b.WriteString("<w:pBdr>")
+	// CT_PBdr sequence: top, left, bottom, right.
 	writeBorder(b, "top", borders.Top)
-	writeBorder(b, "bottom", borders.Bottom)
 	writeBorder(b, "left", borders.Left)
+	writeBorder(b, "bottom", borders.Bottom)
 	writeBorder(b, "right", borders.Right)
 	b.WriteString("</w:pBdr>")
 }
@@ -466,6 +593,74 @@ func imageExtension(mimeType string) string {
 	default:
 		return "png"
 	}
+}
+
+// numID resolves a numbering style name to the numeric w:numId used in numbering.xml.
+// Numeric names are returned unchanged so identifiers loaded from Word stay stable.
+func (w *Writer) numID(name string) string {
+	if name == "" {
+		return ""
+	}
+	if isDigits(name) {
+		return name
+	}
+	ns := w.doc.NumberingStyles()
+	names := make([]string, 0, len(ns))
+	for n := range ns {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for i, n := range names {
+		if n == name {
+			return strconv.Itoa(i + 1)
+		}
+	}
+	return "1"
+}
+
+// wordMLRoot opens a WordprocessingML root element with the namespace set Word
+// writes, including mc:Ignorable for the extension prefixes.
+func wordMLRoot(tag string) string {
+	return fmt.Sprintf(`<%s xmlns:wpc="%s" xmlns:mc="%s" xmlns:o="%s" xmlns:r="%s" xmlns:m="%s" xmlns:v="%s" xmlns:wp14="%s" xmlns:wp="%s" xmlns:w10="%s" xmlns:w="%s" xmlns:w14="%s" xmlns:w15="%s" xmlns:wpg="%s" xmlns:wpi="%s" xmlns:wne="%s" xmlns:wps="%s" xmlns:a="%s" xmlns:pic="%s" mc:Ignorable="w14 w15 wp14">`,
+		tag, nsWPC, nsMC, nsO, nsR, nsM, nsV, nsWP14, nsWP, nsW10, nsW, nsW14, nsW15, nsWPG, nsWPI, nsWNE, nsWPS, nsA, nsPIC)
+}
+
+func (w *Writer) imageFileName(img *document.Image) string {
+	if img.Name != "" {
+		base := filepath.Base(img.Name)
+		if base != "" && base != "." && strings.Contains(base, ".") {
+			img.Name = base
+			return base
+		}
+	}
+	ext := "png"
+	if img.MimeType != "" {
+		ext = imageExtension(img.MimeType)
+	} else if img.Source != "" {
+		ext = strings.TrimPrefix(strings.ToLower(filepath.Ext(img.Source)), ".")
+		if ext == "jpg" {
+			ext = "jpeg"
+		}
+		if ext == "" {
+			ext = "png"
+		}
+	}
+	if img.ID <= 0 {
+		img.ID = w.doc.AllocImageIDPublic()
+	}
+	img.Name = fmt.Sprintf("image%d.%s", img.ID, ext)
+	return img.Name
+}
+
+func (w *Writer) imageRel(img *document.Image) string {
+	name := w.imageFileName(img)
+	target := "media/" + name
+	if w.cur != nil {
+		return w.addDocRel(relImage, target)
+	}
+	id := w.ensureRel(relImage, target)
+	img.RelID = id
+	return id
 }
 
 // imageContentType returns the content type for an image extension.

@@ -808,7 +808,6 @@ func TestReadBreakInRun(t *testing.T) {
 	}
 }
 
-
 // --- writeHyperlinkFontProps coverage ---
 
 func TestWriteHyperlinkWithFontStyle(t *testing.T) {

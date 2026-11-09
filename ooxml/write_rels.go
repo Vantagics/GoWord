@@ -19,35 +19,45 @@ func (w *Writer) writeRootRels() error {
 }
 
 func (w *Writer) writeDocRels() error {
-	// Add standard relationships
-	w.addDocRel(relStyles, "styles.xml")
-	w.addDocRel(relSettings, "settings.xml")
+	w.ensureRel(relStyles, "styles.xml")
+	w.ensureRel(relSettings, "settings.xml")
+	if w.hasFile("word/numbering.xml") || len(w.doc.NumberingStyles()) > 0 {
+		w.ensureRel(relNumbering, "numbering.xml")
+	}
+	if w.hasFile("word/fontTable.xml") {
+		w.ensureRel(relFontTable, "fontTable.xml")
+	}
+	if w.hasFile("word/webSettings.xml") {
+		w.ensureRel(relWebSettings, "webSettings.xml")
+	}
+	if w.hasFile("word/theme/theme1.xml") {
+		w.ensureRel(relTheme, "theme/theme1.xml")
+	}
+	if w.hasFile("word/footnotes.xml") || len(w.doc.Footnotes()) > 0 {
+		w.ensureRel(relFootnotes, "footnotes.xml")
+	}
+	if w.hasFile("word/endnotes.xml") || len(w.doc.Endnotes()) > 0 {
+		w.ensureRel(relEndnotes, "endnotes.xml")
+	}
+	if w.hasFile("word/comments.xml") || len(w.doc.Comments()) > 0 {
+		w.ensureRel(relComments, "comments.xml")
+	}
+	return w.writeRelsFile("word/_rels/document.xml.rels", w.docRels)
+}
 
-	if len(w.doc.NumberingStyles()) > 0 {
-		w.addDocRel(relNumbering, "numbering.xml")
-	}
-	if len(w.doc.Footnotes()) > 0 {
-		w.addDocRel(relFootnotes, "footnotes.xml")
-	}
-	if len(w.doc.Endnotes()) > 0 {
-		w.addDocRel(relEndnotes, "endnotes.xml")
-	}
-	if len(w.doc.Comments()) > 0 {
-		w.addDocRel(relComments, "comments.xml")
-	}
-
+func (w *Writer) writeRelsFile(name string, rels []relationship) error {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<Relationships xmlns="%s">`, nsRels))
-	for _, rel := range w.docRels {
+	for _, rel := range rels {
 		if rel.TargetMode != "" {
 			b.WriteString(fmt.Sprintf(`<Relationship Id="%s" Type="%s" Target="%s" TargetMode="%s"/>`,
 				rel.ID, rel.Type, escapeXML(rel.Target), rel.TargetMode))
 		} else {
 			b.WriteString(fmt.Sprintf(`<Relationship Id="%s" Type="%s" Target="%s"/>`,
-				rel.ID, rel.Type, rel.Target))
+				rel.ID, rel.Type, escapeXML(rel.Target)))
 		}
 	}
 	b.WriteString(`</Relationships>`)
-	return w.addZipFile("word/_rels/document.xml.rels", []byte(b.String()))
+	return w.addZipFile(name, []byte(b.String()))
 }

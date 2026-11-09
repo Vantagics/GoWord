@@ -17,19 +17,26 @@ var PaperSizes = map[string][2]int{
 
 // SectionStyle represents section-level formatting.
 type SectionStyle struct {
-	Orientation  string // OrientPortrait or OrientLandscape
-	PageWidth    int    // Page width in twips
-	PageHeight   int    // Page height in twips
-	MarginTop    int    // Top margin in twips
-	MarginBottom int    // Bottom margin in twips
-	MarginLeft   int    // Left margin in twips
-	MarginRight  int    // Right margin in twips
-	HeaderHeight int    // Header distance from top in twips
-	FooterHeight int    // Footer distance from bottom in twips
-	ColumnCount  int    // Number of columns
-	ColumnSpacing int   // Space between columns in twips
-	PageNumberStart *int // Starting page number (nil = continue)
-	BreakType    string // "nextPage", "continuous", "evenPage", "oddPage"
+	Orientation     string // OrientPortrait or OrientLandscape
+	PageWidth       int    // Page width in twips
+	PageHeight      int    // Page height in twips
+	MarginTop       int    // Top margin in twips
+	MarginBottom    int    // Bottom margin in twips
+	MarginLeft      int    // Left margin in twips
+	MarginRight     int    // Right margin in twips
+	HeaderHeight    int    // Header distance from top in twips
+	FooterHeight    int    // Footer distance from bottom in twips
+	ColumnCount     int    // Number of columns
+	ColumnSpacing   int    // Space between columns in twips
+	PageNumberStart *int   // Starting page number (nil = continue)
+	// PageNumberFormat is the w:pgNumType/@w:fmt value, for example "decimal"
+	// or "upperRoman". Empty means the writer omits the format.
+	PageNumberFormat string
+	BreakType        string // "nextPage", "continuous", "evenPage", "oddPage"
+	// TitlePg is true when the section has a distinct first-page header/footer.
+	TitlePg bool
+	// Gutter is the gutter margin in twips (0 = omit).
+	Gutter int
 }
 
 // DefaultSectionStyle returns A4 portrait with standard margins.

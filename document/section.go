@@ -150,6 +150,7 @@ func (s *Section) AddFootnote() *Footnote {
 		ID:  s.doc.allocFootnoteID(),
 	}
 	s.doc.footnotes = append(s.doc.footnotes, fn)
+	s.doc.notesDirty = true
 	s.Elements = append(s.Elements, fn)
 	return fn
 }
@@ -161,6 +162,7 @@ func (s *Section) AddEndnote() *Endnote {
 		ID:  s.doc.allocEndnoteID(),
 	}
 	s.doc.endnotes = append(s.doc.endnotes, en)
+	s.doc.notesDirty = true
 	s.Elements = append(s.Elements, en)
 	return en
 }
@@ -216,6 +218,7 @@ func (s *Section) AddComment(author, text string) *Comment {
 		Text:   text,
 	}
 	s.doc.comments = append(s.doc.comments, c)
+	s.doc.notesDirty = true
 	s.Elements = append(s.Elements, c)
 	return c
 }
@@ -250,6 +253,7 @@ func (s *Section) AddHeader(headerType string) *Header {
 	}
 	h := &Header{doc: s.doc, Type: headerType}
 	s.Headers = append(s.Headers, h)
+	s.headersDirty = true
 	return h
 }
 
@@ -260,7 +264,14 @@ func (s *Section) AddFooter(footerType string) *Footer {
 	}
 	f := &Footer{doc: s.doc, Type: footerType}
 	s.Footers = append(s.Footers, f)
+	s.headersDirty = true
 	return f
+}
+
+// HeadersChanged reports whether headers or footers were added through the API
+// after the section was loaded. The writer then rebuilds sectPr.
+func (s *Section) HeadersChanged() bool {
+	return s.headersDirty
 }
 
 func headingStyleName(depth int) string {

@@ -50,14 +50,15 @@ func (w *Writer) writeAppProperties() error {
 	p := w.doc.Properties
 	var b strings.Builder
 	b.WriteString(xmlHeader())
+	// CT_ExtendedProperties order: Application, then Manager, then Company.
 	b.WriteString(fmt.Sprintf(`<Properties xmlns="%s" xmlns:vt="%s">`, nsEP, nsVT))
-	if p.Company != "" {
-		b.WriteString(fmt.Sprintf(`<Company>%s</Company>`, escapeXML(p.Company)))
-	}
+	b.WriteString(`<Application>GoWord</Application>`)
 	if p.Manager != "" {
 		b.WriteString(fmt.Sprintf(`<Manager>%s</Manager>`, escapeXML(p.Manager)))
 	}
-	b.WriteString(`<Application>GoWord</Application>`)
+	if p.Company != "" {
+		b.WriteString(fmt.Sprintf(`<Company>%s</Company>`, escapeXML(p.Company)))
+	}
 	b.WriteString(`</Properties>`)
 	return w.addZipFile("docProps/app.xml", []byte(b.String()))
 }

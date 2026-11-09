@@ -391,15 +391,15 @@ func TestNewElementTypes(t *testing.T) {
 
 func TestFontStyleNewProperties(t *testing.T) {
 	fs := style.FontStyle{
-		Emboss:        true,
-		Shadow:        true,
-		Imprint:       true,
-		Outline:       true,
-		TextEffect:    "shimmer",
-		RightToLeft:   true,
-		NameEastAsia:  "SimSun",
+		Emboss:         true,
+		Shadow:         true,
+		Imprint:        true,
+		Outline:        true,
+		TextEffect:     "shimmer",
+		RightToLeft:    true,
+		NameEastAsia:   "SimSun",
 		UnderlineColor: "FF0000",
-		Kerning:       12,
+		Kerning:        12,
 	}
 	if !fs.Emboss || !fs.Shadow || !fs.Imprint || !fs.Outline {
 		t.Error("font style properties not set")

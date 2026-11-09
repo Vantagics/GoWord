@@ -25,7 +25,7 @@ func (w *Writer) writeTextElement(b *strings.Builder, text string) {
 
 func (w *Writer) writeTextRun(b *strings.Builder, tr *document.TextRun) {
 	b.WriteString(`<w:p>`)
-	ppr := paraStyleToXML(&tr.Style, tr.StyleName)
+	ppr := paraStyleToXML(&tr.Style, tr.StyleName, w.numID(tr.Style.NumStyleName))
 	if ppr != "" {
 		b.WriteString(ppr)
 	}
@@ -74,17 +74,11 @@ func (w *Writer) writePageBreak(b *strings.Builder) {
 }
 
 func (w *Writer) writeHyperlink(b *strings.Builder, h *document.Hyperlink) {
-	relID := w.addDocRelExternal(relHyperlink, h.URL)
 	b.WriteString(`<w:p>`)
-	b.WriteString(fmt.Sprintf(`<w:hyperlink r:id="%s">`, relID))
-	b.WriteString(`<w:r>`)
-	b.WriteString(`<w:rPr><w:rStyle w:val="Hyperlink"/>`)
-	// Build inner rPr content directly instead of stripping outer tags
-	writeHyperlinkFontProps(b, &h.Font)
-	b.WriteString(`</w:rPr>`)
-	w.writeTextElement(b, h.Text)
-	b.WriteString(`</w:r>`)
-	b.WriteString(`</w:hyperlink>`)
+	if ppr := paraStyleToXML(&h.Para, ""); ppr != "" {
+		b.WriteString(ppr)
+	}
+	w.writeHyperlinkInline(b, h)
 	b.WriteString(`</w:p>`)
 }
 
@@ -93,23 +87,21 @@ func writeHyperlinkFontProps(b *strings.Builder, f *style.FontStyle) {
 	if f == nil {
 		return
 	}
+	// Same CT_RPr order as fontStyleToXML, without the rPr wrapper.
 	if f.Name != "" {
 		b.WriteString(fmt.Sprintf(`<w:rFonts w:ascii="%s" w:hAnsi="%s" w:cs="%s"/>`, escapeXML(f.Name), escapeXML(f.Name), escapeXML(f.Name)))
 	}
 	if f.Bold {
-		b.WriteString(`<w:b/>`)
+		b.WriteString(`<w:b/><w:bCs/>`)
 	}
 	if f.Italic {
-		b.WriteString(`<w:i/>`)
+		b.WriteString(`<w:i/><w:iCs/>`)
 	}
 	if f.Strikethrough {
 		b.WriteString(`<w:strike/>`)
 	}
 	if f.DoubleStrikethrough {
 		b.WriteString(`<w:dstrike/>`)
-	}
-	if f.Underline != "" && f.Underline != "none" {
-		b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
 	}
 	if f.Color != "" {
 		b.WriteString(fmt.Sprintf(`<w:color w:val="%s"/>`, f.Color))
@@ -119,16 +111,29 @@ func writeHyperlinkFontProps(b *strings.Builder, f *style.FontStyle) {
 		b.WriteString(fmt.Sprintf(`<w:sz w:val="%d"/>`, hp))
 		b.WriteString(fmt.Sprintf(`<w:szCs w:val="%d"/>`, hp))
 	}
+	if f.Underline != "" && f.Underline != "none" {
+		b.WriteString(fmt.Sprintf(`<w:u w:val="%s"/>`, f.Underline))
+	}
 }
 
 func (w *Writer) writeHyperlinkInline(b *strings.Builder, h *document.Hyperlink) {
-	relID := w.addDocRelExternal(relHyperlink, h.URL)
-	b.WriteString(fmt.Sprintf(`<w:hyperlink r:id="%s">`, relID))
+	b.WriteString(`<w:hyperlink`)
+	if h.IsInternal {
+		b.WriteString(fmt.Sprintf(` w:anchor="%s"`, escapeXML(h.URL)))
+	} else if h.URL != "" {
+		relID := w.addDocRelExternal(relHyperlink, h.URL)
+		b.WriteString(fmt.Sprintf(` r:id="%s"`, relID))
+	}
+	if h.Tooltip != "" {
+		b.WriteString(fmt.Sprintf(` w:tooltip="%s"`, escapeXML(h.Tooltip)))
+	}
+	b.WriteString(`>`)
 	b.WriteString(`<w:r>`)
-	b.WriteString(`<w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr>`)
+	b.WriteString(`<w:rPr><w:rStyle w:val="Hyperlink"/>`)
+	writeHyperlinkFontProps(b, &h.Font)
+	b.WriteString(`</w:rPr>`)
 	w.writeTextElement(b, h.Text)
-	b.WriteString(`</w:r>`)
-	b.WriteString(`</w:hyperlink>`)
+	b.WriteString(`</w:r></w:hyperlink>`)
 }
 
 // Ensure imports are used.

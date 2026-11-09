@@ -6,6 +6,11 @@ import (
 )
 
 func (w *Writer) writeFootnotes() error {
+	if !w.doc.NotesDirty() {
+		if _, ok := w.doc.OriginalPart("word/footnotes.xml"); ok && w.hasFile("word/footnotes.xml") {
+			return nil
+		}
+	}
 	footnotes := w.doc.Footnotes()
 	if len(footnotes) == 0 {
 		return nil
@@ -36,6 +41,11 @@ func (w *Writer) writeFootnotes() error {
 }
 
 func (w *Writer) writeEndnotes() error {
+	if !w.doc.NotesDirty() {
+		if _, ok := w.doc.OriginalPart("word/endnotes.xml"); ok && w.hasFile("word/endnotes.xml") {
+			return nil
+		}
+	}
 	endnotes := w.doc.Endnotes()
 	if len(endnotes) == 0 {
 		return nil
@@ -66,6 +76,11 @@ func (w *Writer) writeEndnotes() error {
 }
 
 func (w *Writer) writeComments() error {
+	if !w.doc.NotesDirty() {
+		if _, ok := w.doc.OriginalPart("word/comments.xml"); ok && w.hasFile("word/comments.xml") {
+			return nil
+		}
+	}
 	comments := w.doc.Comments()
 	if len(comments) == 0 {
 		return nil

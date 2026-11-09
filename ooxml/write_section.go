@@ -8,42 +8,75 @@ import (
 )
 
 func (w *Writer) writeSectionProperties(b *strings.Builder, sec *document.Section, isLast bool) {
+	el := w.sectPrElement(sec)
 	if isLast {
-		// Last section properties go inside w:body > w:sectPr
-		b.WriteString(`<w:sectPr>`)
-	} else {
-		// Non-last sections: properties go inside the last paragraph's pPr
-		b.WriteString(`<w:p><w:pPr><w:sectPr>`)
+		b.WriteString(el)
+		return
 	}
+	b.WriteString(`<w:p><w:pPr>`)
+	b.WriteString(el)
+	b.WriteString(`</w:pPr></w:p>`)
+}
 
-	// Header/footer references
-	for _, hp := range w.headerParts {
-		for _, h := range sec.Headers {
-			if w.headerPartMatches(hp.filename, h) {
-				relID := w.addDocRel(relHeader, hp.filename)
-				b.WriteString(fmt.Sprintf(`<w:headerReference w:type="%s" r:id="%s"/>`, h.Type, relID))
-			}
-		}
+// sectPrElement returns a complete w:sectPr element.
+// ECMA-376 CT_SectPr order: header/footer references, type, pgSz, pgMar,
+// pgNumType, cols, titlePg.
+func (w *Writer) sectPrElement(sec *document.Section) string {
+	if sec.RawSectPr != "" && !sec.HeadersChanged() {
+		return sec.RawSectPr
 	}
-	for _, fp := range w.footerParts {
-		for _, f := range sec.Footers {
-			if w.footerPartMatches(fp.filename, f) {
-				relID := w.addDocRel(relFooter, fp.filename)
-				b.WriteString(fmt.Sprintf(`<w:footerReference w:type="%s" r:id="%s"/>`, f.Type, relID))
-			}
+	var b strings.Builder
+	b.WriteString(`<w:sectPr>`)
+	for _, h := range sec.Headers {
+		name := h.PartName
+		if name == "" {
+			continue
 		}
+		typ := h.Type
+		if typ == "" {
+			typ = "default"
+		}
+		relID := w.ensureRel(relHeader, name)
+		b.WriteString(fmt.Sprintf(`<w:headerReference w:type="%s" r:id="%s"/>`, typ, relID))
+	}
+	for _, f := range sec.Footers {
+		name := f.PartName
+		if name == "" {
+			continue
+		}
+		typ := f.Type
+		if typ == "" {
+			typ = "default"
+		}
+		relID := w.ensureRel(relFooter, name)
+		b.WriteString(fmt.Sprintf(`<w:footerReference w:type="%s" r:id="%s"/>`, typ, relID))
 	}
 
 	ss := &sec.Style
+	if ss.BreakType != "" && ss.BreakType != "nextPage" {
+		b.WriteString(fmt.Sprintf(`<w:type w:val="%s"/>`, ss.BreakType))
+	}
 	b.WriteString(fmt.Sprintf(`<w:pgSz w:w="%d" w:h="%d"`, ss.PageWidth, ss.PageHeight))
 	if ss.Orientation == "landscape" {
 		b.WriteString(` w:orient="landscape"`)
 	}
 	b.WriteString(`/>`)
-
-	b.WriteString(fmt.Sprintf(`<w:pgMar w:top="%d" w:right="%d" w:bottom="%d" w:left="%d" w:header="%d" w:footer="%d"/>`,
+	b.WriteString(fmt.Sprintf(`<w:pgMar w:top="%d" w:right="%d" w:bottom="%d" w:left="%d" w:header="%d" w:footer="%d"`,
 		ss.MarginTop, ss.MarginRight, ss.MarginBottom, ss.MarginLeft, ss.HeaderHeight, ss.FooterHeight))
-
+	if ss.Gutter > 0 {
+		b.WriteString(fmt.Sprintf(` w:gutter="%d"`, ss.Gutter))
+	}
+	b.WriteString(`/>`)
+	if ss.PageNumberStart != nil || ss.PageNumberFormat != "" {
+		b.WriteString(`<w:pgNumType`)
+		if ss.PageNumberFormat != "" {
+			b.WriteString(fmt.Sprintf(` w:fmt="%s"`, ss.PageNumberFormat))
+		}
+		if ss.PageNumberStart != nil {
+			b.WriteString(fmt.Sprintf(` w:start="%d"`, *ss.PageNumberStart))
+		}
+		b.WriteString(`/>`)
+	}
 	if ss.ColumnCount > 1 {
 		b.WriteString(fmt.Sprintf(`<w:cols w:num="%d"`, ss.ColumnCount))
 		if ss.ColumnSpacing > 0 {
@@ -51,73 +84,118 @@ func (w *Writer) writeSectionProperties(b *strings.Builder, sec *document.Sectio
 		}
 		b.WriteString(`/>`)
 	}
-
-	if ss.PageNumberStart != nil {
-		b.WriteString(fmt.Sprintf(`<w:pgNumType w:start="%d"/>`, *ss.PageNumberStart))
+	if ss.TitlePg || sectionHasFirstHF(sec) {
+		b.WriteString(`<w:titlePg/>`)
 	}
+	b.WriteString(`</w:sectPr>`)
+	return b.String()
+}
 
-	if ss.BreakType != "" && ss.BreakType != "nextPage" {
-		b.WriteString(fmt.Sprintf(`<w:type w:val="%s"/>`, ss.BreakType))
+func sectionHasFirstHF(sec *document.Section) bool {
+	for _, h := range sec.Headers {
+		if h.Type == "first" {
+			return true
+		}
 	}
-
-	if isLast {
-		b.WriteString(`</w:sectPr>`)
-	} else {
-		b.WriteString(`</w:sectPr></w:pPr></w:p>`)
+	for _, f := range sec.Footers {
+		if f.Type == "first" {
+			return true
+		}
 	}
+	return false
 }
 
 func (w *Writer) generateHeaderFooterParts() {
 	headerIdx := 1
 	footerIdx := 1
+	used := map[string]bool{}
+	for _, sec := range w.doc.Sections {
+		for _, h := range sec.Headers {
+			if h.PartName != "" {
+				used[h.PartName] = true
+			}
+		}
+		for _, f := range sec.Footers {
+			if f.PartName != "" {
+				used[f.PartName] = true
+			}
+		}
+	}
+
+	alloc := func(prefix string, idx *int) string {
+		for {
+			name := fmt.Sprintf("%s%d.xml", prefix, *idx)
+			*idx++
+			if !used[name] {
+				used[name] = true
+				return name
+			}
+		}
+	}
 
 	// Track if we've written watermark to at least one header
 	w.watermarkWritten = false
 
 	for _, sec := range w.doc.Sections {
 		for _, h := range sec.Headers {
-			filename := fmt.Sprintf("header%d.xml", headerIdx)
-			content := w.generateHeaderXML(h)
-			w.headerParts = append(w.headerParts, headerFooterPart{
-				filename: filename,
-				content:  content,
-				header:   h,
-			})
-			headerIdx++
+			if h.PartName == "" {
+				h.PartName = alloc("header", &headerIdx)
+			}
+			w.headerParts = append(w.headerParts, w.buildHeaderPart(h))
 		}
 
 		// If document has watermark but section has no header, create one
 		if len(sec.Headers) == 0 && !w.watermarkWritten && (w.doc.WatermarkTextValue() != nil || w.doc.WatermarkPictureValue() != nil) {
 			h := &document.Header{Type: "default"}
 			sec.Headers = append(sec.Headers, h)
-			filename := fmt.Sprintf("header%d.xml", headerIdx)
-			content := w.generateHeaderXML(h)
-			w.headerParts = append(w.headerParts, headerFooterPart{
-				filename: filename,
-				content:  content,
-				header:   h,
-			})
-			headerIdx++
+			h.PartName = alloc("header", &headerIdx)
+			w.headerParts = append(w.headerParts, w.buildHeaderPart(h))
 		}
 
 		for _, f := range sec.Footers {
-			filename := fmt.Sprintf("footer%d.xml", footerIdx)
-			content := w.generateFooterXML(f)
-			w.footerParts = append(w.footerParts, headerFooterPart{
-				filename: filename,
-				content:  content,
-				footer:   f,
-			})
-			footerIdx++
+			if f.PartName == "" {
+				f.PartName = alloc("footer", &footerIdx)
+			}
+			w.footerParts = append(w.footerParts, w.buildFooterPart(f))
 		}
 	}
+}
+
+func (w *Writer) buildHeaderPart(h *document.Header) headerFooterPart {
+	part := headerFooterPart{filename: h.PartName, header: h}
+	wantMark := !w.watermarkWritten && (w.doc.WatermarkTextValue() != nil || w.doc.WatermarkPictureValue() != nil)
+	if len(h.RawPart) > 0 && !wantMark {
+		part.content = h.RawPart
+		return part
+	}
+	col := &relCollector{}
+	w.cur = col
+	part.content = w.generateHeaderXML(h)
+	part.rels = col.rels
+	part.generated = true
+	w.cur = nil
+	return part
+}
+
+func (w *Writer) buildFooterPart(f *document.Footer) headerFooterPart {
+	part := headerFooterPart{filename: f.PartName, footer: f}
+	if len(f.RawPart) > 0 {
+		part.content = f.RawPart
+		return part
+	}
+	col := &relCollector{}
+	w.cur = col
+	part.content = w.generateFooterXML(f)
+	part.rels = col.rels
+	part.generated = true
+	w.cur = nil
+	return part
 }
 
 func (w *Writer) generateHeaderXML(h *document.Header) []byte {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:hdr xmlns:w="%s" xmlns:r="%s" xmlns:wp="%s" xmlns:a="%s" xmlns:pic="%s">`,
-		nsW, nsR, nsWP, nsA, nsPIC))
+	b.WriteString(wordMLRoot("w:hdr"))
 
 	// Watermark (added to first header)
 	w.writeWatermarkInHeader(&b)
@@ -135,8 +213,7 @@ func (w *Writer) generateHeaderXML(h *document.Header) []byte {
 func (w *Writer) generateFooterXML(f *document.Footer) []byte {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:ftr xmlns:w="%s" xmlns:r="%s" xmlns:wp="%s" xmlns:a="%s" xmlns:pic="%s">`,
-		nsW, nsR, nsWP, nsA, nsPIC))
+	b.WriteString(wordMLRoot("w:ftr"))
 	for _, elem := range f.Elements {
 		w.writeElementXML(&b, elem)
 	}
@@ -155,6 +232,26 @@ func (w *Writer) writeHeaderFooterFiles() error {
 	}
 	for _, fp := range w.footerParts {
 		if err := w.addZipFile("word/"+fp.filename, fp.content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Writer) writeHeaderFooterRels() error {
+	for _, hp := range w.headerParts {
+		if !hp.generated {
+			continue
+		}
+		if err := w.writeRelsFile("word/_rels/"+hp.filename+".rels", hp.rels); err != nil {
+			return err
+		}
+	}
+	for _, fp := range w.footerParts {
+		if !fp.generated {
+			continue
+		}
+		if err := w.writeRelsFile("word/_rels/"+fp.filename+".rels", fp.rels); err != nil {
 			return err
 		}
 	}
@@ -267,7 +364,7 @@ func (w *Writer) writePictureWatermark(b *strings.Builder, wp *document.Watermar
 	b.WriteString(`<o:lock v:ext="edit" aspectratio="t"/>`)
 	b.WriteString(`</v:shapetype>`)
 	b.WriteString(fmt.Sprintf(`<v:shape xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="%s" id="WordPictureWatermark" o:spid="_x0000_s2050" type="#_x0000_t75" style="position:absolute;margin-left:0;margin-top:0;width:%dpt;height:%dpt;z-index:-251658751;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin" o:allowincell="f">`, nsR, width, height))
-	b.WriteString(fmt.Sprintf(`<v:imagedata r:id="%s" o:title="" gain="%s" blacklevel="%s"/>`, img.RelID, gain, blacklevel))
+	b.WriteString(fmt.Sprintf(`<v:imagedata r:id="%s" o:title="" gain="%s" blacklevel="%s"/>`, w.imageRel(img), gain, blacklevel))
 	b.WriteString(`</v:shape>`)
 	b.WriteString(`</w:pict></w:r>`)
 	b.WriteString(`</w:p>`)

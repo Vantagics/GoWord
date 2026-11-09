@@ -1,55 +1,128 @@
 package ooxml
 
 import (
+	"encoding/xml"
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
+type ctDoc struct {
+	XMLName   xml.Name `xml:"Types"`
+	Defaults  []ctItem `xml:"Default"`
+	Overrides []ctItem `xml:"Override"`
+}
+
+type ctItem struct {
+	Ext         string `xml:"Extension,attr"`
+	PartName    string `xml:"PartName,attr"`
+	ContentType string `xml:"ContentType,attr"`
+}
+
 func (w *Writer) writeContentTypes() error {
+	defaults := map[string]string{
+		"rels": "application/vnd.openxmlformats-package.relationships+xml",
+		"xml":  "application/xml",
+	}
+	overrides := map[string]string{}
+
+	if data, ok := w.doc.OriginalPart("[Content_Types].xml"); ok {
+		var ct ctDoc
+		if err := xml.Unmarshal(data, &ct); err == nil {
+			for _, d := range ct.Defaults {
+				if d.Ext != "" && d.ContentType != "" {
+					defaults[d.Ext] = d.ContentType
+				}
+			}
+			for _, o := range ct.Overrides {
+				name := strings.TrimPrefix(o.PartName, "/")
+				if name != "" && w.hasFile(name) && o.ContentType != "" {
+					overrides["/"+name] = o.ContentType
+				}
+			}
+		}
+	}
+
+	for _, ext := range w.collectImageExtensions() {
+		if _, ok := defaults[ext]; !ok {
+			defaults[ext] = imageContentType(ext)
+		}
+	}
+	for _, f := range w.files {
+		if ct, ok := standardContentType(f.name); ok {
+			overrides["/"+f.name] = ct
+		}
+		if strings.HasPrefix(f.name, "word/media/") {
+			ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(f.name)), ".")
+			if ext != "" {
+				if _, ok := defaults[ext]; !ok {
+					defaults[ext] = imageContentType(ext)
+				}
+			}
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<Types xmlns="%s">`, nsCT))
-
-	// Default types
-	b.WriteString(`<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`)
-	b.WriteString(`<Default Extension="xml" ContentType="application/xml"/>`)
-
-	// Image defaults
-	imageExts := w.collectImageExtensions()
-	for _, ext := range imageExts {
-		b.WriteString(fmt.Sprintf(`<Default Extension="%s" ContentType="%s"/>`, ext, imageContentType(ext)))
+	exts := make([]string, 0, len(defaults))
+	for ext := range defaults {
+		exts = append(exts, ext)
 	}
-
-	// Override parts
-	b.WriteString(`<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>`)
-	b.WriteString(`<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`)
-	b.WriteString(`<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>`)
-	b.WriteString(`<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`)
-	b.WriteString(`<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>`)
-
-	if len(w.doc.NumberingStyles()) > 0 {
-		b.WriteString(`<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>`)
+	sort.Strings(exts)
+	for _, ext := range exts {
+		b.WriteString(fmt.Sprintf(`<Default Extension="%s" ContentType="%s"/>`, ext, defaults[ext]))
 	}
-	if len(w.doc.Footnotes()) > 0 {
-		b.WriteString(`<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>`)
+	parts := make([]string, 0, len(overrides))
+	for part := range overrides {
+		parts = append(parts, part)
 	}
-	if len(w.doc.Endnotes()) > 0 {
-		b.WriteString(`<Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>`)
+	sort.Strings(parts)
+	for _, part := range parts {
+		b.WriteString(fmt.Sprintf(`<Override PartName="%s" ContentType="%s"/>`, part, overrides[part]))
 	}
-	if len(w.doc.Comments()) > 0 {
-		b.WriteString(`<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>`)
-	}
-
-	// Header/footer overrides
-	for i := range w.headerParts {
-		b.WriteString(fmt.Sprintf(`<Override PartName="/word/%s" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`, w.headerParts[i].filename))
-	}
-	for i := range w.footerParts {
-		b.WriteString(fmt.Sprintf(`<Override PartName="/word/%s" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`, w.footerParts[i].filename))
-	}
-
 	b.WriteString(`</Types>`)
 	return w.addZipFile("[Content_Types].xml", []byte(b.String()))
+}
+
+func standardContentType(name string) (string, bool) {
+	switch name {
+	case "word/document.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", true
+	case "word/styles.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml", true
+	case "word/settings.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml", true
+	case "word/fontTable.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml", true
+	case "word/numbering.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml", true
+	case "word/footnotes.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml", true
+	case "word/endnotes.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml", true
+	case "word/comments.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml", true
+	case "word/webSettings.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml", true
+	case "word/theme/theme1.xml":
+		return "application/vnd.openxmlformats-officedocument.theme+xml", true
+	case "docProps/core.xml":
+		return "application/vnd.openxmlformats-package.core-properties+xml", true
+	case "docProps/app.xml":
+		return "application/vnd.openxmlformats-officedocument.extended-properties+xml", true
+	case "docProps/custom.xml":
+		return "application/vnd.openxmlformats-officedocument.custom-properties+xml", true
+	}
+	base := filepath.Base(name)
+	if strings.HasPrefix(name, "word/") && strings.HasSuffix(name, ".xml") && strings.HasPrefix(base, "header") {
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml", true
+	}
+	if strings.HasPrefix(name, "word/") && strings.HasSuffix(name, ".xml") && strings.HasPrefix(base, "footer") {
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", true
+	}
+	return "", false
 }
 
 func (w *Writer) collectImageExtensions() []string {

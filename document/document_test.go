@@ -286,13 +286,13 @@ func TestNumberingStyle(t *testing.T) {
 func TestSectionStyle(t *testing.T) {
 	doc := New()
 	ss := style.SectionStyle{
-		Orientation: style.OrientLandscape,
-		PageWidth:   16838,
-		PageHeight:  11906,
-		MarginTop:   720,
+		Orientation:  style.OrientLandscape,
+		PageWidth:    16838,
+		PageHeight:   11906,
+		MarginTop:    720,
 		MarginBottom: 720,
-		MarginLeft:  720,
-		MarginRight: 720,
+		MarginLeft:   720,
+		MarginRight:  720,
 	}
 	sec := doc.AddSectionWithStyle(ss)
 	if sec.Style.Orientation != style.OrientLandscape {

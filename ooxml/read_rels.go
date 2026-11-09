@@ -2,6 +2,9 @@ package ooxml
 
 import (
 	"encoding/xml"
+	"fmt"
+	"path"
+	"strings"
 )
 
 type xmlRelationships struct {
@@ -17,23 +20,56 @@ type xmlRelationship struct {
 }
 
 func (r *docxReader) readRels() error {
-	r.rels = make(map[string]string)
-
-	data, err := r.readZipFile("word/_rels/document.xml.rels")
-	if err != nil {
-		return nil // No rels file is OK
-	}
-
-	var rels xmlRelationships
-	if err := xml.Unmarshal(data, &rels); err != nil {
+	if err := r.loadAllRels(); err != nil {
 		return err
 	}
-
-	for _, rel := range rels.Relationship {
-		r.rels[rel.ID] = rel.Target
+	if r.docPart == "" {
+		r.docPart = "word/document.xml"
 	}
-
+	r.usePart(r.docPart)
 	return nil
+}
+
+func (r *docxReader) loadAllRels() error {
+	if r.relsByPart == nil {
+		r.relsByPart = map[string]map[string]relInfo{}
+	}
+	for _, f := range r.zr.File {
+		if !strings.HasSuffix(f.Name, ".rels") {
+			continue
+		}
+		data, err := r.readZipFile(f.Name)
+		if err != nil {
+			continue
+		}
+		var rels xmlRelationships
+		if err := xml.Unmarshal(data, &rels); err != nil {
+			return fmt.Errorf("reading relationships %s: %w", f.Name, err)
+		}
+		owner := relsOwner(f.Name)
+		m := map[string]relInfo{}
+		for _, rel := range rels.Relationship {
+			m[rel.ID] = relInfo{ID: rel.ID, Type: rel.Type, Target: rel.Target, TargetMode: rel.TargetMode}
+		}
+		r.relsByPart[owner] = m
+	}
+	return nil
+}
+
+// relsOwner maps "word/_rels/document.xml.rels" to "word/document.xml"
+// and "_rels/.rels" to "".
+func relsOwner(relsPath string) string {
+	if relsPath == "_rels/.rels" {
+		return ""
+	}
+	dir := path.Dir(relsPath) // word/_rels
+	parent := path.Dir(dir)   // word
+	base := path.Base(relsPath)
+	base = strings.TrimSuffix(base, ".rels")
+	if parent == "." {
+		return base
+	}
+	return path.Join(parent, base)
 }
 
 func (r *docxReader) readZipFile(name string) ([]byte, error) {

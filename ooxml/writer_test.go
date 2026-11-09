@@ -20,15 +20,15 @@ func TestCellShadingAndBorders(t *testing.T) {
 	tbl := sec.AddTable(nil)
 	row := tbl.AddRow(0, nil)
 	cs := &style.CellStyle{
-		Width: 3000,
-		Shading: &style.Shading{Fill: "FFFF00", Color: "auto", Pattern: "clear"},
-		BorderTop:    &style.Border{Style: "single", Size: 4, Color: "000000"},
-		BorderBottom: &style.Border{Style: "single", Size: 4, Color: "000000"},
-		BorderLeft:   &style.Border{Style: "single", Size: 4, Color: "000000"},
-		BorderRight:  &style.Border{Style: "single", Size: 4, Color: "000000"},
-		VAlign:       "center",
+		Width:         3000,
+		Shading:       &style.Shading{Fill: "FFFF00", Color: "auto", Pattern: "clear"},
+		BorderTop:     &style.Border{Style: "single", Size: 4, Color: "000000"},
+		BorderBottom:  &style.Border{Style: "single", Size: 4, Color: "000000"},
+		BorderLeft:    &style.Border{Style: "single", Size: 4, Color: "000000"},
+		BorderRight:   &style.Border{Style: "single", Size: 4, Color: "000000"},
+		VAlign:        "center",
 		TextDirection: "tbRl",
-		NoWrap:       true,
+		NoWrap:        true,
 	}
 	c := row.AddCell(3000, cs)
 	c.AddText("Styled cell", nil, nil)
@@ -62,10 +62,10 @@ func TestTableAlignmentAndLayout(t *testing.T) {
 	doc := document.New()
 	sec := doc.AddSection()
 	ts := &style.TableStyle{
-		Width:     9000,
-		WidthType: "dxa",
-		Alignment: "center",
-		Layout:    "fixed",
+		Width:            9000,
+		WidthType:        "dxa",
+		Alignment:        "center",
+		Layout:           "fixed",
 		CellMarginTop:    50,
 		CellMarginBottom: 50,
 		CellMarginLeft:   100,
@@ -159,17 +159,17 @@ func TestParagraphSpacingAndIndent(t *testing.T) {
 	doc := document.New()
 	sec := doc.AddSection()
 	ps := &style.ParagraphStyle{
-		SpaceBefore:  120,
-		SpaceAfter:   240,
-		LineSpacing:  360,
-		LineRule:     "exact",
-		Indent:       720,
-		IndentRight:  360,
-		FirstLine:    360,
-		KeepNext:     true,
-		KeepLines:    true,
+		SpaceBefore:     120,
+		SpaceAfter:      240,
+		LineSpacing:     360,
+		LineRule:        "exact",
+		Indent:          720,
+		IndentRight:     360,
+		FirstLine:       360,
+		KeepNext:        true,
+		KeepLines:       true,
 		PageBreakBefore: true,
-		WidowControl: true,
+		WidowControl:    true,
 	}
 	sec.AddText("Styled paragraph", nil, ps)
 
@@ -996,7 +996,6 @@ func TestZipFileNotFoundError(t *testing.T) {
 	}
 }
 
-
 // --- Tests for 0% coverage functions ---
 
 func TestWriteHyperlinkInline(t *testing.T) {
@@ -1193,7 +1192,7 @@ func TestWriteTableBordersAllSides(t *testing.T) {
 	doc := document.New()
 	sec := doc.AddSection()
 	ts := &style.TableStyle{
-		Width: 9000,
+		Width:         9000,
 		BorderTop:     &style.Border{Style: "single", Size: 4, Color: "000000"},
 		BorderBottom:  &style.Border{Style: "single", Size: 4, Color: "000000"},
 		BorderLeft:    &style.Border{Style: "single", Size: 4, Color: "000000"},
@@ -1379,8 +1378,8 @@ func TestWriteImagesGifBmpTiff(t *testing.T) {
 
 func TestImageContentTypeAndExtension(t *testing.T) {
 	tests := []struct {
-		ext  string
-		ct   string
+		ext string
+		ct  string
 	}{
 		{"png", "image/png"},
 		{"jpeg", "image/jpeg"},
@@ -1417,7 +1416,6 @@ func TestImageContentTypeAndExtension(t *testing.T) {
 		}
 	}
 }
-
 
 // --- Reader round-trip coverage for hyperlinks and tables ---
 
