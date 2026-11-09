@@ -98,3 +98,31 @@ Harness: 10/10 read and round-trip matches for LibreOffice, pandoc, python-docx,
 
 Unchanged from round 4.
 
+## Round 6 — docx4j parts and footnote numbers
+
+Samples added in `testdata/word/docx4j/` (Apache-2.0): `comments-one.docx`, `header-simple.docx`, `image-png1.docx`, `paragraph-two.docx`, `NumberingIndents.docx`.
+
+`header-simple.docx`, `paragraph-two.docx`, and `NumberingIndents.docx` match all four tools. `image-png1.docx` has no words; pandoc emits a stand-in description, so recall against pandoc is 0. `comments-one.docx` is 0.71 versus POI because goword also prints the comment body.
+
+### Fixed
+
+Footnote and endnote reference numbers are written into the extracted text next to the anchor. `mammoth/footnotes.docx` is now `Ouch1.2` plus the note body, which covers the LibreOffice text that previously scored 0.
+
+### Remaining
+
+pandoc and POI still tokenize note bodies differently from the anchor line. VML text boxes stored inside an escaped drawing attribute (`docx4j/vml-textbox.docx`) still do not round-trip into LibreOffice text.
+
+## Round 7 — text effects, fonts, duplicate hyperlinks
+
+Samples added in `testdata/word/docx4j/`: `w14-texteffects.docx`, `hyperlink-dupe.docx`, `Mac_OSX_Fonts.docx`, `comments-two.docx`, `images-png2.docx`.
+
+`Mac_OSX_Fonts.docx` and `w14-texteffects.docx` match all four tools. `images-png2.docx` is a picture with no words (pandoc invents a description). `comments-two.docx` is 0.58 versus POI for the same comment-body reason as round 6. `hyperlink-dupe.docx` was 0.50 for every tool, read and round-trip: a TOC hyperlink is `H1` plus a tab plus a PAGEREF result `1`, and goword concatenated that into `H11`.
+
+### Fixed
+
+Tabs inside a hyperlink are kept, so the extracted text is `H1`, tab, `1` instead of `H11`.
+
+### Remaining
+
+Picture-only files still disagree with pandoc's image description. Comment bodies are still included.
+

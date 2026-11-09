@@ -734,6 +734,9 @@ func (r *docxReader) readHyperlink(dec *xml.Decoder, start xml.StartElement, p *
 					return err
 				}
 				for _, run := range tmp.Runs {
+					if run.Tab {
+						h.Text += "\t"
+					}
 					h.Text += run.Text
 					if h.Font.Name == "" && h.Font.Size == 0 {
 						h.Font = run.Style
