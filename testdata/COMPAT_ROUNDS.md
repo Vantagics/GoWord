@@ -88,3 +88,13 @@ Deleted and moved-from text (`w:delText`) is included in extracted text, in docu
 
 A trailing `b` in `Tika-792.docx` is still inside a nested move that this pass does not surface. Comment bodies are still emitted in addition to the anchor text, so tools that ignore comments report extra words.
 
+## Round 5 — more python-docx documents
+
+Samples added in `testdata/word/python-docx/`: `blk-containing-table.docx`, `blk-paras-and-tables.docx`, `fnt-color.docx`, `par-alignment.docx`, `par-hlink-frags.docx`, `run-char-style.docx`, `sty-known-styles.docx`, `tbl-2x2-table.docx`, `tbl-having-applied-style.docx`, `txt-font-highlight-color.docx` (MIT).
+
+Harness: 10/10 read and round-trip matches for LibreOffice, pandoc, python-docx, and POI at the 0.90 recall bar. No code change; the round-1 reader already covered these tables, styles, colors, and hyperlink fragments.
+
+### Remaining
+
+Unchanged from round 4.
+
