@@ -51,6 +51,7 @@ type Document struct {
 	settingsDirty  bool
 	notesDirty     bool
 	strict         bool
+	password       string
 }
 
 // NumberingStyle defines a custom numbering/list style.

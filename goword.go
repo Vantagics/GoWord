@@ -44,6 +44,18 @@ func OpenFromBytes(data []byte) (*document.Document, error) {
 	return document.OpenFromBytes(data)
 }
 
+// OpenWithPassword reads a .docx, decrypting an ECMA-376 standard or agile
+// package with password.
+func OpenWithPassword(path, password string) (*document.Document, error) {
+	return ooxml.ReadWithPassword(path, password)
+}
+
+// OpenFromBytesWithPassword reads a .docx from bytes, decrypting it when the
+// package is encrypted.
+func OpenFromBytesWithPassword(data []byte, password string) (*document.Document, error) {
+	return ooxml.ReadFromBytesWithPassword(data, password)
+}
+
 // Re-export commonly used types for convenience.
 type (
 	Document         = document.Document
@@ -99,6 +111,12 @@ const (
 	FieldAuthor        = document.FieldAuthor
 	FieldTitle         = document.FieldTitle
 	FieldSubject       = document.FieldSubject
+)
+
+// Encryption errors.
+var (
+	ErrEncrypted     = document.ErrEncrypted
+	ErrWrongPassword = document.ErrWrongPassword
 )
 
 // OMMLToLatex converts an Office Math fragment to LaTeX.

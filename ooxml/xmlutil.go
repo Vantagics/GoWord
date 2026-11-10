@@ -342,6 +342,9 @@ func collectVisible(raw string, skipMoveFrom bool) string {
 				_, _ = readCharData(dec)
 			}
 		case xml.EndElement:
+			if t.Name.Local == "p" && skip == 0 {
+				b.WriteByte('\n')
+			}
 			switch t.Name.Local {
 			case "del":
 				if skip > 0 {

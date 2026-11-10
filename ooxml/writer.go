@@ -172,7 +172,11 @@ func WriteToBytes(doc *document.Document) ([]byte, error) {
 		return nil, err
 	}
 
-	return w.buf.Bytes(), nil
+	plain := w.buf.Bytes()
+	if pw := doc.Password(); pw != "" {
+		return encryptOfficePackage(plain, pw)
+	}
+	return plain, nil
 }
 
 // WriteToWriter writes the document to an io.Writer.

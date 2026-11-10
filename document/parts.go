@@ -38,6 +38,23 @@ func (d *Document) Strict() bool {
 	return d != nil && d.strict
 }
 
+// SetPassword makes the next save an encrypted package (ECMA-376 agile).
+// An empty password writes a normal .docx. Opening an encrypted file with
+// OpenWithPassword stores the password so a later Save keeps it encrypted.
+func (d *Document) SetPassword(password string) {
+	if d != nil {
+		d.password = password
+	}
+}
+
+// Password returns the password used to open or to encrypt this document.
+func (d *Document) Password() string {
+	if d == nil {
+		return ""
+	}
+	return d.password
+}
+
 // StoreOriginalPart records a package part loaded from an existing .docx.
 func (d *Document) StoreOriginalPart(name string, data []byte) {
 	if d.originalParts == nil {

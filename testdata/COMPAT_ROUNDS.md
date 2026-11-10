@@ -219,3 +219,37 @@ These stay mismatches on purpose. Changing goword to imitate them would fight th
 - POI's plain text for ruby appends the reading in parentheses. The default extract is the base text; the reading is on `Ruby.Reading`.
 - pandoc's equation text is TeX. The default extract stays the linear Office form; `MathFormat: "latex"` is the TeX form.
 
+## Round 11 — encrypted packages, macros, templates, charts, CJK
+
+Samples, licenses in `testdata/word/SOURCES.md`:
+
+- `encrypted/`: POI `bug53475-password-is-solrcell.docx` (standard, password `solrcell`) and `bug53475-password-is-pass.docx` (agile, password `pass`); LibreOffice `Encrypted_LO_Standard_abc.docx`, `Encrypted_MSO2007_abc.docx`, `Encrypted_MSO2010_abc.docx`, `Encrypted_MSO2013_abc.docx` (password `abc`).
+- `poi/`: `45690.docm`, `60158.docm`, `60316.dotx`, `60316b.dotx`, document-protection files, `ComplexNumberedLists.docx`, `HeaderFooterUnicode.docx`.
+- `libreoffice/`: charts, an embedded spreadsheet, SmartArt, vertical text (`dkvert.docx`, `tbrl-textbox.docx`, `btlr-textbox.docx`), CJK numbering, grouped text boxes, and OLE objects.
+
+Encrypted files are covered by `go test` (`TestDecryptStandardAndAgileFixtures`, `TestEncryptRoundTrip`). The differential harness skips `testdata/word/encrypted/` because LibreOffice, pandoc, python-docx, and POI are not given the password. `.docm` and `.dotx` are included.
+
+Harness on the whole corpus (158 packages that are not encrypted):
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 152/158 | 154/158 |
+| pandoc | 137/158 | 155/158 |
+| python-docx | 144/158 | 156/158 |
+| Apache POI XWPF | 143/158 | 157/158 |
+
+No file that passed in the previous full run regressed. Every new LibreOffice fixture matches LibreOffice on read and round-trip, including charts, SmartArt, vertical text, and CJK lists.
+
+### Fixed
+
+- ECMA-376 encrypted packages. `OpenWithPassword` / `ReadFromBytesWithPassword` decrypt standard (Office 2007, AES-ECB, SHA-1, 50,000 spins) and agile (Office 2010+, AES-CBC) files. A missing password returns `ErrEncrypted`; a wrong password returns `ErrWrongPassword`. `SetPassword` writes an agile package (AES-256, SHA-512, HMAC) inside a compound file, including the DataSpaces tree Word looks for. Opening with a password keeps it for the next save.
+- CJK list markers: `ideographTraditional` (甲乙丙…), `ideographZodiac` (子丑寅…), `ideographLegalTraditional` (壹貳參…), `taiwaneseCountingThousand` / Chinese counting (一十十一), and `koreanDigital2` (一零, 一一).
+- Text in adjacent paragraphs inside a drawing is separated by a newline, so a grouped text box does not glue `first` and `second` into one word.
+
+### Not defects
+
+- pandoc still prints CJK lists as western digits. LibreOffice and goword use the numbering format.
+- python-docx rejects `.docm` and `.dotx` because the content type is not a Word document. pandoc did not finish those four files within the harness timeout. LibreOffice and POI read them, and goword does too.
+- Chart and SmartArt words live in the drawing or the embedded workbook, not in `w:t`. Round-trip keeps those parts; plain-text export of the chart series is empty for LibreOffice as well.
+- docx.js and officegen publish generators, not redistributable `.docx` binaries. Aspose and Syncfusion sample licenses do not allow committing their outputs. Those sources were not added as fixtures.
+

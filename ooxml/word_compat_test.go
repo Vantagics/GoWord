@@ -246,9 +246,13 @@ func TestWordFixturesRoundTrip(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".docx") {
-			files = append(files, path)
+		if info.IsDir() || !strings.HasSuffix(path, ".docx") {
+			return nil
 		}
+		if strings.Contains(path, string(filepath.Separator)+"encrypted"+string(filepath.Separator)) {
+			return nil
+		}
+		files = append(files, path)
 		return nil
 	})
 	if err != nil {

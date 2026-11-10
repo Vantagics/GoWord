@@ -47,6 +47,11 @@ func (d *Document) ToBytes() ([]byte, error) {
 var (
 	ErrNoReader = errors.New("goword: reader not registered. Import github.com/VantageDataChat/GoWord to auto-register")
 	ErrNoWriter = errors.New("goword: writer not registered. Import github.com/VantageDataChat/GoWord to auto-register")
+	// ErrEncrypted is returned when a package is an encrypted compound file
+	// and no password was supplied.
+	ErrEncrypted = errors.New("goword: document is encrypted")
+	// ErrWrongPassword is returned when the password does not match.
+	ErrWrongPassword = errors.New("goword: incorrect document password")
 )
 
 // RegisterIO is called by the ooxml package to wire up read/write functions.

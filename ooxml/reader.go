@@ -20,8 +20,39 @@ func Read(path string) (*document.Document, error) {
 	return ReadFromBytes(data)
 }
 
+// ReadWithPassword reads a .docx, decrypting an ECMA-376 package when needed.
+func ReadWithPassword(path, password string) (*document.Document, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading file: %w", err)
+	}
+	return ReadFromBytesWithPassword(data, password)
+}
+
+// ReadFromBytesWithPassword reads a .docx. Encrypted packages (ECMA-376
+// standard or agile) are decrypted with password first.
+func ReadFromBytesWithPassword(data []byte, password string) (*document.Document, error) {
+	if isCompoundFile(data) {
+		plain, err := decryptOfficePackage(data, password)
+		if err != nil {
+			return nil, err
+		}
+		doc, err := readZipBytes(plain)
+		if err != nil {
+			return nil, err
+		}
+		doc.SetPassword(password)
+		return doc, nil
+	}
+	return readZipBytes(data)
+}
+
 // ReadFromBytes reads a .docx from byte data.
 func ReadFromBytes(data []byte) (*document.Document, error) {
+	return ReadFromBytesWithPassword(data, "")
+}
+
+func readZipBytes(data []byte) (*document.Document, error) {
 	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("opening zip: %w", err)

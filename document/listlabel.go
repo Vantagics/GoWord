@@ -114,9 +114,77 @@ func formatListNumber(n int, format string) string {
 			return "0" + strconv.Itoa(n)
 		}
 		return strconv.Itoa(n)
+	case "ideographTraditional", "taiwaneseCounting":
+		return cycleOrDecimal("甲乙丙丁戊己庚辛壬癸", n)
+	case "ideographZodiac":
+		return cycleOrDecimal("子丑寅卯辰巳午未申酉戌亥", n)
+	case "ideographLegalTraditional":
+		return legalTraditional(n)
+	case "taiwaneseCountingThousand", "chineseCounting", "chineseCountingThousand", "japaneseCounting", "japaneseDigitalTenThousand":
+		return cjkCounting(n)
+	case "koreanDigital", "koreanDigital2", "ideographDigital":
+		return cjkDigital(n)
 	default:
 		return strconv.Itoa(n)
 	}
+}
+
+func cycleOrDecimal(chars string, n int) string {
+	r := []rune(chars)
+	if n >= 1 && n <= len(r) {
+		return string(r[n-1])
+	}
+	return strconv.Itoa(n)
+}
+
+func legalTraditional(n int) string {
+	d := []string{"", "壹", "貳", "參", "肆", "伍", "陸", "柒", "捌", "玖"}
+	if n <= 0 || n >= 100 {
+		return strconv.Itoa(n)
+	}
+	if n < 10 {
+		return d[n]
+	}
+	s := d[n/10] + "拾"
+	if n%10 != 0 {
+		s += d[n%10]
+	}
+	return s
+}
+
+func cjkCounting(n int) string {
+	d := []string{"", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	if n <= 0 || n >= 100 {
+		return strconv.Itoa(n)
+	}
+	if n < 10 {
+		return d[n]
+	}
+	if n < 20 {
+		s := "十"
+		if n%10 != 0 {
+			s += d[n%10]
+		}
+		return s
+	}
+	s := d[n/10] + "十"
+	if n%10 != 0 {
+		s += d[n%10]
+	}
+	return s
+}
+
+func cjkDigital(n int) string {
+	if n < 0 {
+		return strconv.Itoa(n)
+	}
+	digits := []string{"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	s := strconv.Itoa(n)
+	var b strings.Builder
+	for _, r := range s {
+		b.WriteString(digits[r-'0'])
+	}
+	return b.String()
 }
 
 func alpha(n int, base byte) string {

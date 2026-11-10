@@ -216,7 +216,17 @@ READERS = {
 
 
 def iter_docx(root: Path) -> list[Path]:
-    files = [p for p in root.rglob("*.docx") if p.is_file() and not p.name.startswith("~$")]
+    files = []
+    for p in root.rglob("*"):
+        if not p.is_file() or p.name.startswith("~$"):
+            continue
+        if p.suffix.lower() not in {".docx", ".docm", ".dotx"}:
+            continue
+        # Encrypted packages are compound files. The other readers cannot be
+        # given a password here; Go tests cover them.
+        if "encrypted" in p.parts:
+            continue
+        files.append(p)
     return sorted(files)
 
 
