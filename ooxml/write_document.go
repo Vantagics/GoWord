@@ -9,7 +9,7 @@ import (
 func (w *Writer) writeDocument() error {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(wordMLRoot("w:document"))
+	b.WriteString(w.wordMLRoot("w:document"))
 	b.WriteString(`<w:body>`)
 
 	if len(w.doc.Sections) == 0 {

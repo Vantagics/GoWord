@@ -50,6 +50,7 @@ type Document struct {
 	numberingDirty bool
 	settingsDirty  bool
 	notesDirty     bool
+	strict         bool
 }
 
 // NumberingStyle defines a custom numbering/list style.
@@ -60,6 +61,8 @@ type NumberingStyle struct {
 
 // NumberingLevel defines formatting for one level of a numbering style.
 type NumberingLevel struct {
+	ILvl    int    // ilvl this level applies to
+	Start   int    // First value. 0 means 1.
 	Format  string // "decimal", "upperLetter", "lowerLetter", "upperRoman", "lowerRoman", "bullet"
 	Text    string // e.g. "%1." or "%1.%2."
 	Left    int    // Left indent in twips

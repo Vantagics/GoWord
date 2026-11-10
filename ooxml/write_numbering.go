@@ -26,7 +26,7 @@ func (w *Writer) writeNumbering() error {
 
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:numbering xmlns:w="%s">`, nsW))
+	b.WriteString(fmt.Sprintf(`<w:numbering xmlns:w="%s">`, w.wNS()))
 
 	// CT_Numbering requires every abstractNum before every num. Interleaving
 	// them is a common reason Word offers to repair the file.
@@ -53,7 +53,11 @@ func (w *Writer) writeNumbering() error {
 
 		for lvl, level := range ns.Levels {
 			b.WriteString(fmt.Sprintf(`<w:lvl w:ilvl="%d">`, lvl))
-			b.WriteString(`<w:start w:val="1"/>`)
+			start := level.Start
+			if start <= 0 {
+				start = 1
+			}
+			b.WriteString(fmt.Sprintf(`<w:start w:val="%d"/>`, start))
 
 			numFmt := level.Format
 			if numFmt == "" {

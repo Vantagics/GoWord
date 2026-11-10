@@ -5,6 +5,32 @@ import (
 	"strings"
 )
 
+// numberingFor returns the numId and ilvl for a paragraph. A direct numPr
+// wins. Otherwise the paragraph style's numPr is used, following w:basedOn.
+func (d *Document) numberingFor(p *Paragraph) (string, int) {
+	if p == nil {
+		return "", 0
+	}
+	if p.Style.NumStyleName != "" || d == nil {
+		return p.Style.NumStyleName, p.Style.NumLevel
+	}
+	name := p.StyleName
+	seen := map[string]bool{}
+	for name != "" && !seen[name] {
+		seen[name] = true
+		ps, ok := d.paragraphStyles[name]
+		if !ok {
+			break
+		}
+		if ps.NumStyleName != "" {
+			level := ps.NumLevel
+			return ps.NumStyleName, level
+		}
+		name = ps.BasedOn
+	}
+	return "", 0
+}
+
 // listLabel renders the visible marker for a numbering instance, advancing
 // counters in ctr. An empty string means the paragraph is not numbered or the
 // definition is not available.
@@ -30,6 +56,10 @@ func (d *Document) listLabel(numID string, level int, ctr map[string][]int) stri
 		arr = append(arr, 0)
 	}
 	arr = arr[:level+1]
+	start := lvStart(ns.Levels[level])
+	if arr[level] == 0 {
+		arr[level] = start - 1
+	}
 	arr[level]++
 	ctr[numID] = arr
 
@@ -57,6 +87,13 @@ func (d *Document) listLabel(numID string, level int, ctr map[string][]int) stri
 		return ""
 	}
 	return out + " "
+}
+
+func lvStart(lv NumberingLevel) int {
+	if lv.Start <= 0 {
+		return 1
+	}
+	return lv.Start
 }
 
 func formatListNumber(n int, format string) string {

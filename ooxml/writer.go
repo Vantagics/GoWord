@@ -268,6 +268,7 @@ func (w *Writer) addDocRelExternal(relType, target string) string {
 }
 
 func (w *Writer) addRel(relType, target, mode string) string {
+	relType = w.relType(relType)
 	if w.cur != nil {
 		w.cur.next++
 		id := fmt.Sprintf("rId%d", w.cur.next)
@@ -283,6 +284,7 @@ func (w *Writer) addRel(relType, target, mode string) string {
 // ensureRel reuses a document relationship with the same type and target so
 // identifiers loaded from an existing package stay valid.
 func (w *Writer) ensureRel(relType, target string) string {
+	relType = w.relType(relType)
 	for _, rel := range w.docRels {
 		if rel.Type == relType && rel.Target == target && rel.TargetMode == "" {
 			return rel.ID
@@ -618,11 +620,54 @@ func (w *Writer) numID(name string) string {
 	return "1"
 }
 
+func (w *Writer) strict() bool {
+	return w != nil && w.doc != nil && w.doc.Strict()
+}
+
+func (w *Writer) wNS() string {
+	if w.strict() {
+		return "http://purl.oclc.org/ooxml/wordprocessingml/main"
+	}
+	return nsW
+}
+
+func (w *Writer) rNS() string {
+	if w.strict() {
+		return "http://purl.oclc.org/ooxml/officeDocument/relationships"
+	}
+	return nsR
+}
+
+func (w *Writer) mNS() string {
+	if w.strict() {
+		return "http://purl.oclc.org/ooxml/officeDocument/math"
+	}
+	return nsM
+}
+
+func (w *Writer) wpNS() string {
+	if w.strict() {
+		return "http://purl.oclc.org/ooxml/drawingml/wordprocessingDrawing"
+	}
+	return nsWP
+}
+
+// relType rewrites a transitional officeDocument relationship URI when the
+// document asked for a strict package. Package relationships are unchanged.
+func (w *Writer) relType(relType string) string {
+	if !w.strict() {
+		return relType
+	}
+	const from = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+	const to = "http://purl.oclc.org/ooxml/officeDocument/relationships"
+	return strings.Replace(relType, from, to, 1)
+}
+
 // wordMLRoot opens a WordprocessingML root element with the namespace set Word
 // writes, including mc:Ignorable for the extension prefixes.
-func wordMLRoot(tag string) string {
+func (w *Writer) wordMLRoot(tag string) string {
 	return fmt.Sprintf(`<%s xmlns:wpc="%s" xmlns:mc="%s" xmlns:o="%s" xmlns:r="%s" xmlns:m="%s" xmlns:v="%s" xmlns:wp14="%s" xmlns:wp="%s" xmlns:w10="%s" xmlns:w="%s" xmlns:w14="%s" xmlns:w15="%s" xmlns:wpg="%s" xmlns:wpi="%s" xmlns:wne="%s" xmlns:wps="%s" xmlns:a="%s" xmlns:pic="%s" mc:Ignorable="w14 w15 wp14">`,
-		tag, nsWPC, nsMC, nsO, nsR, nsM, nsV, nsWP14, nsWP, nsW10, nsW, nsW14, nsW15, nsWPG, nsWPI, nsWNE, nsWPS, nsA, nsPIC)
+		tag, nsWPC, nsMC, nsO, w.rNS(), w.mNS(), nsV, nsWP14, w.wpNS(), nsW10, w.wNS(), nsW14, nsW15, nsWPG, nsWPI, nsWNE, nsWPS, nsA, nsPIC)
 }
 
 func (w *Writer) imageFileName(img *document.Image) string {

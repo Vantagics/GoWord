@@ -24,6 +24,20 @@ func (d *Document) SettingsDirty() bool { return d.settingsDirty }
 // NotesDirty reports whether notes or comments were changed through the API.
 func (d *Document) NotesDirty() bool { return d.notesDirty }
 
+// SetStrict requests a strict OOXML package on the next save.
+// The default remains transitional WordprocessingML, which is what Word,
+// LibreOffice, and the other reference readers open.
+func (d *Document) SetStrict(strict bool) {
+	if d != nil {
+		d.strict = strict
+	}
+}
+
+// Strict reports whether the next save should use strict OOXML namespaces.
+func (d *Document) Strict() bool {
+	return d != nil && d.strict
+}
+
 // StoreOriginalPart records a package part loaded from an existing .docx.
 func (d *Document) StoreOriginalPart(name string, data []byte) {
 	if d.originalParts == nil {

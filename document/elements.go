@@ -299,6 +299,14 @@ const (
 // Tab represents a tab character in a run.
 type Tab struct{}
 
+// Ruby is an East Asian phonetic guide. Base is the word itself. Reading is
+// the pronunciation stored in w:rt. XML is the original w:ruby element.
+type Ruby struct {
+	Base    string
+	Reading string
+	XML     string
+}
+
 // RawXML is markup this library preserves verbatim so a round trip does not
 // drop drawings, math, tracked changes, or other structures it does not model.
 type RawXML struct {
@@ -355,6 +363,7 @@ func (w *WatermarkText) elementType() string     { return "watermarktext" }
 func (w *WatermarkPicture) elementType() string  { return "watermarkpicture" }
 func (f *FormField) elementType() string         { return "formfield" }
 func (t *Tab) elementType() string               { return "tab" }
+func (r *Ruby) elementType() string              { return "ruby" }
 func (r *RawXML) elementType() string            { return "rawxml" }
 func (f *Field) elementType() string             { return "field" }
 func (s *Sdt) elementType() string               { return "sdt" }

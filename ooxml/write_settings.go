@@ -16,7 +16,7 @@ func (w *Writer) writeSettings() error {
 	// CT_Settings order: zoom, defaultTabStop, evenAndOddHeaders,
 	// characterSpacingControl, updateFields, compat.
 	b.WriteString(fmt.Sprintf(`<w:settings xmlns:mc="%s" xmlns:o="%s" xmlns:r="%s" xmlns:m="%s" xmlns:v="%s" xmlns:w10="%s" xmlns:w="%s" xmlns:w14="%s" xmlns:sl="http://schemas.openxmlformats.org/schemaLibrary/2006/main" mc:Ignorable="w14">`,
-		nsMC, nsO, nsR, nsM, nsV, nsW10, nsW, nsW14))
+		nsMC, nsO, w.rNS(), w.mNS(), nsV, nsW10, w.wNS(), nsW14))
 	b.WriteString(`<w:zoom w:percent="100"/>`)
 	b.WriteString(`<w:defaultTabStop w:val="720"/>`)
 	if w.hasEvenHeaderFooter() {

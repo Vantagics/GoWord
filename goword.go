@@ -46,29 +46,31 @@ func OpenFromBytes(data []byte) (*document.Document, error) {
 
 // Re-export commonly used types for convenience.
 type (
-	Document       = document.Document
-	Section        = document.Section
-	Paragraph      = document.Paragraph
-	TextRun        = document.TextRun
-	Table          = document.Table
-	Row            = document.Row
-	Cell           = document.Cell
-	Image          = document.Image
-	Hyperlink      = document.Hyperlink
-	Header         = document.Header
-	Footer         = document.Footer
-	Footnote       = document.Footnote
-	Endnote        = document.Endnote
-	ListItem       = document.ListItem
-	Bookmark       = document.Bookmark
-	Comment        = document.Comment
-	FontStyle      = style.FontStyle
-	ParagraphStyle = style.ParagraphStyle
-	TableStyle     = style.TableStyle
-	DocProperties  = common.DocProperties
-	NumberingStyle = document.NumberingStyle
-	NumberingLevel = document.NumberingLevel
-	Line           = document.Line
+	Document         = document.Document
+	Section          = document.Section
+	Paragraph        = document.Paragraph
+	TextRun          = document.TextRun
+	Table            = document.Table
+	Row              = document.Row
+	Cell             = document.Cell
+	Image            = document.Image
+	Hyperlink        = document.Hyperlink
+	Header           = document.Header
+	Footer           = document.Footer
+	Footnote         = document.Footnote
+	Endnote          = document.Endnote
+	ListItem         = document.ListItem
+	Bookmark         = document.Bookmark
+	Comment          = document.Comment
+	FontStyle        = style.FontStyle
+	ParagraphStyle   = style.ParagraphStyle
+	TableStyle       = style.TableStyle
+	DocProperties    = common.DocProperties
+	NumberingStyle   = document.NumberingStyle
+	NumberingLevel   = document.NumberingLevel
+	Ruby             = document.Ruby
+	ExtractOptions   = document.ExtractOptions
+	Line             = document.Line
 	WatermarkText    = document.WatermarkText
 	WatermarkPicture = document.WatermarkPicture
 	FormField        = document.FormField
@@ -98,3 +100,8 @@ const (
 	FieldTitle         = document.FieldTitle
 	FieldSubject       = document.FieldSubject
 )
+
+// OMMLToLatex converts an Office Math fragment to LaTeX.
+func OMMLToLatex(raw string) string {
+	return document.OMMLToLatex(raw)
+}

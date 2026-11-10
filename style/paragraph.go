@@ -29,6 +29,7 @@ type ParagraphStyle struct {
 	Shading         *Shading
 	NumStyleName    string // Numbering style name for lists
 	NumLevel        int    // Numbering level for lists
+	BasedOn         string // Parent paragraph style id
 }
 
 // TabStop defines a tab stop position and type.

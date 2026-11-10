@@ -291,45 +291,122 @@ func (d *Document) Tables() []*Table {
 	return result
 }
 
+// ExtractOptions controls ExtractTextWith.
+//
+// The zero value omits headers, footers, note bodies, and comment bodies.
+// ExtractDefaults matches ExtractText: headers, footers, note bodies, and
+// comment bodies are all included, math stays in linear form, and ruby
+// contributes its base text. Note bodies are appended after the body and
+// the header/footer text. Comment bodies are appended last.
+type ExtractOptions struct {
+	IncludeComments   bool
+	IncludeNoteBodies bool
+	IncludeHeaders    bool
+	// MathFormat is "" or "linear" for the linearized equation, or "latex"
+	// for an OMML-to-LaTeX conversion.
+	MathFormat string
+	// Ruby is "" or "base" (the default), "reading", or "both".
+	Ruby string
+	// NoteAnchor is "" or "glue" (default: the note number is appended to the
+	// preceding word, which is what LibreOffice writes) or "separate" (a space
+	// before the number, which is what pandoc's plain text does).
+	NoteAnchor string
+}
+
+// ExtractDefaults is the option set used by ExtractText.
+func ExtractDefaults() ExtractOptions {
+	return ExtractOptions{
+		IncludeComments:   true,
+		IncludeNoteBodies: true,
+		IncludeHeaders:    true,
+	}
+}
+
 // ExtractText returns all text content from the document as a single string.
+// It includes header, footer, footnote, endnote, and comment text.
+// Use ExtractTextWith to omit comments or note bodies, or to convert equations.
 func (d *Document) ExtractText() string {
+	return d.ExtractTextWith(ExtractDefaults())
+}
+
+// ExtractTextWith extracts text using opt.
+func (d *Document) ExtractTextWith(opt ExtractOptions) string {
 	var b strings.Builder
 	ctr := map[string][]int{}
 	for _, sec := range d.Sections {
 		for _, elem := range sec.Elements {
-			extractElementText(&b, elem, d, ctr)
+			extractElementText(&b, elem, d, ctr, opt)
 		}
-		for _, h := range sec.Headers {
-			for _, elem := range h.Elements {
-				extractElementText(&b, elem, d, ctr)
+		if opt.IncludeHeaders {
+			for _, h := range sec.Headers {
+				for _, elem := range h.Elements {
+					extractElementText(&b, elem, d, ctr, opt)
+				}
+			}
+			for _, f := range sec.Footers {
+				for _, elem := range f.Elements {
+					extractElementText(&b, elem, d, ctr, opt)
+				}
 			}
 		}
-		for _, f := range sec.Footers {
-			for _, elem := range f.Elements {
-				extractElementText(&b, elem, d, ctr)
+	}
+	if opt.IncludeNoteBodies {
+		for _, fn := range d.footnotes {
+			for _, elem := range fn.Elements {
+				extractElementText(&b, elem, d, ctr, opt)
+			}
+		}
+		for _, en := range d.endnotes {
+			for _, elem := range en.Elements {
+				extractElementText(&b, elem, d, ctr, opt)
 			}
 		}
 	}
-	for _, fn := range d.footnotes {
-		for _, elem := range fn.Elements {
-			extractElementText(&b, elem, d, ctr)
-		}
-	}
-	for _, en := range d.endnotes {
-		for _, elem := range en.Elements {
-			extractElementText(&b, elem, d, ctr)
-		}
-	}
-	for _, c := range d.comments {
-		if c.Text != "" {
-			b.WriteString(c.Text)
-			b.WriteString("\n")
-		}
-		for _, elem := range c.Elements {
-			extractElementText(&b, elem, d, ctr)
+	if opt.IncludeComments {
+		for _, c := range d.comments {
+			if c.Text != "" {
+				b.WriteString(c.Text)
+				b.WriteString("\n")
+			}
+			for _, elem := range c.Elements {
+				extractElementText(&b, elem, d, ctr, opt)
+			}
 		}
 	}
 	return b.String()
+}
+
+// Rubies returns phonetic guides in document order.
+func (d *Document) Rubies() []*Ruby {
+	if d == nil {
+		return nil
+	}
+	var out []*Ruby
+	var walk func([]Element)
+	walk = func(elems []Element) {
+		for _, el := range elems {
+			switch e := el.(type) {
+			case *Ruby:
+				out = append(out, e)
+			case *Paragraph:
+				walk(e.Inlines)
+			case *Table:
+				for _, row := range e.Rows {
+					for _, cell := range row.Cells {
+						walk(cell.Elements)
+					}
+				}
+			case *Sdt:
+				walk(e.Elements)
+			case *TextRun:
+				walk(e.Elements)
+			}
+		}
+	}
+	for _, sec := range d.Sections {
+		walk(sec.Elements)
+	}
+	return out
 }
 
 func writeRunText(b *strings.Builder, run *Run) {
@@ -342,33 +419,59 @@ func writeRunText(b *strings.Builder, run *Run) {
 	}
 }
 
-func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map[string][]int) {
+func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map[string][]int, opt ExtractOptions) {
 	switch e := elem.(type) {
 	case *Paragraph:
-		if label := doc.listLabel(e.Style.NumStyleName, e.Style.NumLevel, ctr); label != "" {
+		numID, numLevel := doc.numberingFor(e)
+		if label := doc.listLabel(numID, numLevel, ctr); label != "" {
 			b.WriteString(label)
 		}
-		for _, run := range e.Runs {
-			writeRunText(b, run)
+		if paragraphUsesInlines(e, opt) {
+			for _, in := range e.Inlines {
+				extractElementText(b, in, doc, ctr, opt)
+			}
+		} else {
+			for _, run := range e.Runs {
+				writeRunText(b, run)
+			}
 		}
 		b.WriteString("\n")
 	case *Run:
 		writeRunText(b, e)
 	case *Tab:
 		b.WriteByte('\t')
+	case *Ruby:
+		switch opt.Ruby {
+		case "reading":
+			b.WriteString(e.Reading)
+		case "both":
+			b.WriteString(e.Base)
+			if e.Reading != "" {
+				if e.Base != "" {
+					b.WriteByte(' ')
+				}
+				b.WriteString(e.Reading)
+			}
+		default:
+			b.WriteString(e.Base)
+		}
 	case *RawXML:
-		b.WriteString(e.Text)
+		if opt.MathFormat == "latex" && strings.Contains(e.XML, "oMath") {
+			b.WriteString(OMMLToLatex(e.XML))
+		} else {
+			b.WriteString(e.Text)
+		}
 	case *Field:
 		if e.Result != "" {
 			b.WriteString(e.Result)
 		}
 	case *Sdt:
 		for _, child := range e.Elements {
-			extractElementText(b, child, doc, ctr)
+			extractElementText(b, child, doc, ctr, opt)
 		}
 	case *TextRun:
 		for _, child := range e.Elements {
-			extractElementText(b, child, doc, ctr)
+			extractElementText(b, child, doc, ctr, opt)
 		}
 	case *TextBreak:
 		for i := 0; i < e.Count; i++ {
@@ -386,7 +489,7 @@ func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map
 		for _, row := range e.Rows {
 			for ci, cell := range row.Cells {
 				for _, ce := range cell.Elements {
-					extractElementText(b, ce, doc, ctr)
+					extractElementText(b, ce, doc, ctr, opt)
 				}
 				if ci < len(row.Cells)-1 {
 					b.WriteString("\t")
@@ -395,10 +498,43 @@ func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map
 		}
 	case *CheckBox:
 		b.WriteString(e.Text)
-	case *Footnote, *Endnote:
-		// Body text is appended from the document note lists so a note that is
-		// both a section element and a registered note is not counted twice.
+	case *Footnote:
+		if opt.NoteAnchor == "separate" && e.ID > 0 {
+			b.WriteByte(' ')
+			b.WriteString(strconv.Itoa(e.ID))
+		}
+	case *Endnote:
+		if opt.NoteAnchor == "separate" && e.ID > 0 {
+			b.WriteByte(' ')
+			b.WriteString(strconv.Itoa(e.ID))
+		}
 	}
+}
+
+func paragraphUsesInlines(p *Paragraph, opt ExtractOptions) bool {
+	latex := opt.MathFormat == "latex"
+	ruby := opt.Ruby == "reading" || opt.Ruby == "both"
+	separateNotes := opt.NoteAnchor == "separate"
+	if p == nil || (!latex && !ruby && !separateNotes) {
+		return false
+	}
+	for _, in := range p.Inlines {
+		switch e := in.(type) {
+		case *RawXML:
+			if latex && strings.Contains(e.XML, "oMath") {
+				return true
+			}
+		case *Ruby:
+			if ruby {
+				return true
+			}
+		case *Footnote, *Endnote:
+			if separateNotes {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // RemoveParagraph removes a paragraph from the document.

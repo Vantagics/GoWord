@@ -135,6 +135,10 @@ func (w *Writer) writeInline(b *strings.Builder, elem document.Element) {
 		w.writeField(b, e)
 	case *document.Tab:
 		b.WriteString(`<w:r><w:tab/></w:r>`)
+	case *document.Ruby:
+		if e.XML != "" {
+			w.writeRawInline(b, e.XML)
+		}
 	case *document.RawXML:
 		w.writeRawInline(b, e.XML)
 	case *document.CommentRangeStart:
@@ -183,10 +187,29 @@ func (w *Writer) writeRun(b *strings.Builder, r *document.Run) {
 	b.WriteString(`</w:r>`)
 }
 
+func startsWithTag(s, tag string) bool {
+	prefix := "<" + tag
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	if len(s) == len(prefix) {
+		return true
+	}
+	switch s[len(prefix)] {
+	case '>', ' ', '/', '\n', '\r', '\t':
+		return true
+	default:
+		return false
+	}
+}
+
 func (w *Writer) writeRawInline(b *strings.Builder, raw string) {
 	trim := strings.TrimSpace(raw)
-	needsRun := (strings.Contains(trim, "AlternateContent") || strings.HasPrefix(trim, "<w:drawing") || strings.HasPrefix(trim, "<w:pict") || strings.HasPrefix(trim, "<mc:AlternateContent")) &&
-		!strings.HasPrefix(trim, "<w:r") && !strings.HasPrefix(trim, "<w:p") && !strings.HasPrefix(trim, "<w:ins") && !strings.HasPrefix(trim, "<w:del")
+	// Drawings and VML pictures are run-level. <w:pict> begins with the
+	// characters <w:p, so the check has to be a real tag boundary. A bare
+	// w:pict under w:p is ignored by LibreOffice and POI.
+	needsRun := (strings.Contains(trim, "<w:pict") || strings.Contains(trim, "<w:drawing") || strings.Contains(trim, "<w:ruby") || strings.Contains(trim, "AlternateContent")) &&
+		!startsWithTag(trim, "w:r") && !startsWithTag(trim, "w:p") && !startsWithTag(trim, "w:ins") && !startsWithTag(trim, "w:del") && !startsWithTag(trim, "w:moveTo") && !startsWithTag(trim, "w:moveFrom")
 	if needsRun {
 		b.WriteString(`<w:r>`)
 		b.WriteString(raw)

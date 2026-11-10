@@ -273,8 +273,14 @@ func writeCaptured(b *strings.Builder, dec *xml.Decoder, start xml.StartElement)
 }
 
 // visibleText returns text from w:t elements, preferring mc:Choice over
-// mc:Fallback and skipping deleted text.
+// mc:Fallback and skipping deleted text and text that was moved away.
 func visibleText(raw string) string {
+	return collectVisible(raw, true)
+}
+
+// collectVisible walks raw WordprocessingML. skipMoveFrom is false when the
+// caller is already inside a moveFrom and still needs the moved words.
+func collectVisible(raw string, skipMoveFrom bool) string {
 	dec := xml.NewDecoder(strings.NewReader(raw))
 	var b strings.Builder
 	skip := 0
@@ -292,8 +298,12 @@ func visibleText(raw string) string {
 			case "AlternateContent":
 				choicePending = true
 				choiceText = false
-			case "del", "moveFrom":
+			case "del":
 				skip++
+			case "moveFrom":
+				if skipMoveFrom {
+					skip++
+				}
 			case "Fallback":
 				if choicePending && choiceText {
 					skip++
@@ -333,8 +343,12 @@ func visibleText(raw string) string {
 			}
 		case xml.EndElement:
 			switch t.Name.Local {
-			case "del", "moveFrom":
+			case "del":
 				if skip > 0 {
+					skip--
+				}
+			case "moveFrom":
+				if skipMoveFrom && skip > 0 {
 					skip--
 				}
 			case "AlternateContent":

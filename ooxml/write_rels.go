@@ -11,9 +11,9 @@ func (w *Writer) writeRootRels() error {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
 	b.WriteString(fmt.Sprintf(`<Relationships xmlns="%s">`, nsRels))
-	b.WriteString(fmt.Sprintf(`<Relationship Id="rId1" Type="%s" Target="word/document.xml"/>`, relDoc))
+	b.WriteString(fmt.Sprintf(`<Relationship Id="rId1" Type="%s" Target="word/document.xml"/>`, w.relType(relDoc)))
 	b.WriteString(fmt.Sprintf(`<Relationship Id="rId2" Type="%s" Target="docProps/core.xml"/>`, relCoreProps))
-	b.WriteString(fmt.Sprintf(`<Relationship Id="rId3" Type="%s" Target="docProps/app.xml"/>`, relExtProps))
+	b.WriteString(fmt.Sprintf(`<Relationship Id="rId3" Type="%s" Target="docProps/app.xml"/>`, w.relType(relExtProps)))
 	b.WriteString(`</Relationships>`)
 	return w.addZipFile("_rels/.rels", []byte(b.String()))
 }

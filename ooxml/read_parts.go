@@ -132,6 +132,10 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 			continue
 		}
 		switch se.Name.Local {
+		case "basedOn":
+			if v, ok := attr(se, "val"); ok {
+				ps.BasedOn = v
+			}
 		case "pPr":
 			pRaw, err := r.captureElement(dec, se)
 			if err != nil {
@@ -202,7 +206,7 @@ func (r *docxReader) readNumberingPart() error {
 			if i := strings.Index(raw, "abstractNumId"); i >= 0 {
 				abs = findQuoted(raw[i:], "val")
 			}
-			ns := abstract[abs]
+			ns := applyNumOverrides(abstract[abs], raw)
 			if numID != "" {
 				r.doc.AddNumberingStyle("num"+numID, ns)
 			}
@@ -243,6 +247,106 @@ func parseAbstractNum(raw string) document.NumberingStyle {
 	return ns
 }
 
+// applyNumOverrides copies an abstract numbering definition and applies this
+// num's lvlOverride / startOverride entries. Each num keeps its own level slice.
+func applyNumOverrides(ns document.NumberingStyle, raw string) document.NumberingStyle {
+	levels := reindexLevels(ns.Levels)
+	dec := xml.NewDecoder(strings.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "lvlOverride" {
+			continue
+		}
+		ilvl := atoiAttr(se, "ilvl")
+		body, err := captureElementSerialized(dec, se)
+		if err != nil {
+			break
+		}
+		repl, startOver, hasLvl := parseLvlOverride(body)
+		for len(levels) <= ilvl {
+			levels = append(levels, document.NumberingLevel{ILvl: len(levels), Start: 1})
+		}
+		if hasLvl {
+			if repl.Start <= 0 {
+				repl.Start = 1
+			}
+			repl.ILvl = ilvl
+			levels[ilvl] = repl
+		}
+		if startOver > 0 {
+			levels[ilvl].Start = startOver
+		}
+	}
+	ns.Levels = levels
+	return ns
+}
+
+func reindexLevels(levels []document.NumberingLevel) []document.NumberingLevel {
+	if len(levels) == 0 {
+		return nil
+	}
+	max := len(levels) - 1
+	for _, lv := range levels {
+		if lv.ILvl > max {
+			max = lv.ILvl
+		}
+	}
+	out := make([]document.NumberingLevel, max+1)
+	for i, lv := range levels {
+		idx := lv.ILvl
+		if idx < 0 || idx > max {
+			idx = i
+		}
+		out[idx] = lv
+		if out[idx].Start <= 0 {
+			out[idx].Start = 1
+		}
+	}
+	for i := range out {
+		if out[i].Start <= 0 {
+			out[i].Start = 1
+			out[i].ILvl = i
+		}
+	}
+	return out
+}
+
+func parseLvlOverride(raw string) (document.NumberingLevel, int, bool) {
+	dec := xml.NewDecoder(strings.NewReader(raw))
+	var lvl document.NumberingLevel
+	var has bool
+	var startOver int
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		switch se.Name.Local {
+		case "startOverride":
+			startOver = atoiAttr(se, "val")
+			if err := skipRest(dec); err != nil {
+				return lvl, startOver, has
+			}
+		case "lvl":
+			rawLvl, err := captureElementSerialized(dec, se)
+			if err != nil {
+				return lvl, startOver, has
+			}
+			lvl = parseLevel(rawLvl)
+			has = true
+		}
+	}
+	return lvl, startOver, has
+}
+
 func parseLevel(raw string) document.NumberingLevel {
 	var lvl document.NumberingLevel
 	dec := xml.NewDecoder(strings.NewReader(raw))
@@ -256,6 +360,14 @@ func parseLevel(raw string) document.NumberingLevel {
 			continue
 		}
 		switch se.Name.Local {
+		case "lvl":
+			if v, ok := attr(se, "ilvl"); ok {
+				lvl.ILvl, _ = strconv.Atoi(v)
+			}
+		case "start":
+			if v, ok := attr(se, "val"); ok {
+				lvl.Start, _ = strconv.Atoi(v)
+			}
 		case "numFmt":
 			lvl.Format, _ = attr(se, "val")
 		case "lvlText":

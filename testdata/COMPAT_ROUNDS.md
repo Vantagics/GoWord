@@ -180,3 +180,42 @@ No further code change in this round. Compared with round 1's before column (70 
 - Numbering overrides (`poi/NumberingWOverrides.docx`) and a nested move in `poi/Tika-792.docx` are only partly reflected.
 - Picture-only files disagree with pandoc's generated image description.
 
+## Gap fixes after round 10
+
+No new sample files. The harness was run again on the same 131 documents (`go test ./...` green). Compared with round 10:
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 125/131 | 127/131 |
+| pandoc | 119/131 | 128/131 |
+| python-docx | 122/131 | 130/131 |
+| Apache POI XWPF | 116/131 | 130/131 |
+
+Nothing that passed in round 10 regressed.
+
+### Fixed
+
+- `docx4j/vml-textbox.docx`: a VML `w:pict` was written as a direct child of `w:p` (`<w:pict` shares its first characters with `<w:p`). It is now inside `w:r`. LibreOffice and POI both export `v:textbox/w:txbxContent` after a round-trip.
+- `docx4j/2010-mcAlternateContent.docx`: the original package does not open in LibreOffice because `word/comments.xml` contains `mc:AlternateContent`. The rewrite now drops those elements (the comment sentence stays). LibreOffice converts the rewrite to `Hello.` The original file is unchanged and still does not open.
+- `poi/61470.docx`: `w:ruby` is a `Ruby` value with `Base` and `Reading`. `ExtractText` returns the base (`東京`), which is what LibreOffice exports. `Document.Rubies()` and `ExtractOptions.Ruby` (`reading` or `both`) expose the pronunciation. The original `w:ruby` markup is written back, so POI's `東京 (とうきょう)` survives a round-trip.
+- `poi/NumberingWOverrides.docx`: `lvlOverride` and `startOverride` replace the abstract level for that `numId`. Extracted markers are `1`, `A`, `B`, `A`, `B`, `2`, which is what pandoc emits. A paragraph style that only carries `w:numPr` (python-docx `num-having-numbering-part.docx`) now contributes its list marker too.
+- `poi/Tika-792.docx`: text inside `moveFrom` is included, including an insertion nested in the move. LibreOffice's `s.` / `b` and POI's `s` / `b` are both covered. The `moveFrom` / `moveTo` elements are still written back.
+- `poi/shapes-with-text.docx`: text from adjacent drawings is separated so LibreOffice's `Floating text box` stays three words.
+- Extraction: `ExtractText` is unchanged (`ExtractDefaults`: headers, footers, note bodies, and comment bodies). `ExtractTextWith` can omit each of those. `NoteAnchor: "separate"` puts a space before a note number (`prostoy 1`) so the result matches pandoc; the default stays glued (`prostoy1`), which is what LibreOffice exports. `MathFormat: "latex"` runs `OMMLToLatex` (`\frac`, `\sqrt`) without changing the default linear extract.
+- `Document.SetStrict(true)` writes strict WordprocessingML and relationship URIs (`http://purl.oclc.org/ooxml/...`). The default save stays transitional.
+
+### Not goword defects
+
+These stay mismatches on purpose. Changing goword to imitate them would fight the file or another reference reader.
+
+- LibreOffice re-evaluates a `FILENAME` field, so a round-trip saved as `out.docx` exports `out.docx` while the cached result is still `FldSimple.docx`.
+- pandoc invents an image description for pictures that have no alt text (`image-png1.docx`, `images-png2.docx`, `VariousPictures.docx`).
+- pandoc, python-docx, and POI refuse the original strict package (`mammoth/strict-format.docx`). goword reads it. A strict save is available only when requested; tools that reject strict input will still reject it.
+- LibreOffice's list labels on `NumberingWOverrides.docx` repeat the paragraph text (`B B`, `C C`, `4 4`). The numbering part says upper-letter starting at 1 for numId 22 and a continuing decimal for numId 19 (`A`, `B`, then `2`). pandoc agrees with the numbering part.
+- LibreOffice deletes spaces at content-control boundaries (`SDT.docx`, `SDT_Run.docx`, `Bug66263-paragraph.docx`), so `SDT` and `Run` become one token `SDTRun`. POI keeps the spaces, and so does goword.
+- POI's comment extractor adds `Comment by <author>`, which is not document text.
+- python-docx repeats merged cells (`tbl-cell-props.docx`) and repeats a header that the package stores once (`hdr-header-footer.docx`).
+- Note tools disagree with each other: LibreOffice often omits the note body and glues the anchor (`Ouch1.2`); pandoc writes `[1]` and repeats the number under the body; python-docx often skips the notes. `ExtractTextWith` is the way to line up with one of those. One default string cannot match all three.
+- POI's plain text for ruby appends the reading in parentheses. The default extract is the base text; the reading is on `Ruby.Reading`.
+- pandoc's equation text is TeX. The default extract stays the linear Office form; `MathFormat: "latex"` is the TeX form.
+

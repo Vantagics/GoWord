@@ -14,7 +14,7 @@ func (w *Writer) writeStyles() error {
 	}
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:styles xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
+	b.WriteString(fmt.Sprintf(`<w:styles xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
 
 	// Default styles
 	df := w.doc.DefaultFont

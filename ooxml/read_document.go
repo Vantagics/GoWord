@@ -226,12 +226,25 @@ func (r *docxReader) readParagraph(dec *xml.Decoder) (*document.Paragraph, strin
 				if text != "" {
 					p.Runs = append(p.Runs, &document.Run{Text: text})
 				}
-			case "del", "moveFrom":
+			case "del":
 				raw, err := r.captureElement(dec, t)
 				if err != nil {
 					return p, sect, err
 				}
 				text := deletedText(raw)
+				p.Inlines = append(p.Inlines, &document.RawXML{XML: raw, Text: text})
+				if text != "" {
+					p.Runs = append(p.Runs, &document.Run{Text: text})
+				}
+			case "moveFrom":
+				raw, err := r.captureElement(dec, t)
+				if err != nil {
+					return p, sect, err
+				}
+				// The moved words live here when the destination does not repeat
+				// them (insertions nested inside the move). Keep the raw element
+				// so a rewrite still writes moveFrom markup.
+				text := collectVisible(raw, false) + deletedText(raw)
 				p.Inlines = append(p.Inlines, &document.RawXML{XML: raw, Text: text})
 				if text != "" {
 					p.Runs = append(p.Runs, &document.Run{Text: text})
@@ -440,7 +453,9 @@ func (r *docxReader) readNumPr(raw string, p *document.Paragraph) {
 				p.Style.NumLevel = n
 			}
 		case "numId":
-			if v, ok := attr(se, "val"); ok && v != "0" {
+			if v, ok := attr(se, "val"); ok {
+				// numId 0 turns numbering off, including numbering inherited
+				// from the paragraph style.
 				p.Style.NumStyleName = v
 			}
 		}
@@ -555,6 +570,12 @@ func (r *docxReader) readRun(dec *xml.Decoder, p *document.Paragraph, fld *field
 				if err := skipRest(dec); err != nil {
 					return err
 				}
+			case "ruby":
+				raw, err := r.captureElement(dec, t)
+				if err != nil {
+					return err
+				}
+				extras = append(extras, parseRuby(raw))
 			case "drawing", "pict", "object", "AlternateContent":
 				raw, err := r.captureElement(dec, t)
 				if err != nil {
@@ -666,7 +687,17 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 		switch e := ex.(type) {
 		case *document.RawXML:
 			if e.Text != "" {
-				p.Runs = append(p.Runs, &document.Run{Text: e.Text})
+				text := e.Text
+				if drawingMarkup(e.XML) && !strings.HasSuffix(text, "\n") {
+					// Separate text boxes so "box" and the next shape's "A"
+					// stay distinct words.
+					text += "\n"
+				}
+				p.Runs = append(p.Runs, &document.Run{Text: text})
+			}
+		case *document.Ruby:
+			if e.Base != "" {
+				p.Runs = append(p.Runs, &document.Run{Text: e.Base})
 			}
 		case *document.Footnote:
 			// The reference number is not a w:t. Surface it so extracted text
@@ -680,6 +711,12 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 			}
 		}
 	}
+}
+
+func drawingMarkup(xml string) bool {
+	return strings.Contains(xml, "<w:pict") || strings.Contains(xml, "<w:drawing") ||
+		strings.Contains(xml, "<w:txbx") || strings.Contains(xml, "AlternateContent") ||
+		strings.Contains(xml, "<v:textbox") || strings.Contains(xml, "<w:txbxContent")
 }
 
 func runHasProps(fs *style.FontStyle) bool {
@@ -1352,6 +1389,62 @@ func (r *docxReader) interpretTcPr(cell *document.Cell, raw string) {
 			cell.Style.TextDirection, _ = attr(se, "val")
 		}
 	}
+}
+
+// parseRuby splits a phonetic guide into the base text and the reading.
+// The original element is kept so a rewrite does not rebuild ruby markup.
+func parseRuby(raw string) *document.Ruby {
+	rb := &document.Ruby{XML: raw}
+	dec := xml.NewDecoder(strings.NewReader(raw))
+	mode := ""
+	depth := 0
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "rt":
+				if mode == "" {
+					mode = "rt"
+					depth = 1
+				} else {
+					depth++
+				}
+			case "rubyBase":
+				if mode == "" {
+					mode = "base"
+					depth = 1
+				} else {
+					depth++
+				}
+			case "t":
+				s, err := readCharData(dec)
+				if err != nil {
+					return rb
+				}
+				switch mode {
+				case "rt":
+					rb.Reading += s
+				case "base":
+					rb.Base += s
+				}
+			}
+		case xml.EndElement:
+			if depth == 0 {
+				continue
+			}
+			if (mode == "rt" && t.Name.Local == "rt") || (mode == "base" && t.Name.Local == "rubyBase") {
+				depth--
+				if depth == 0 {
+					mode = ""
+				}
+			}
+		}
+	}
+	return rb
 }
 
 func readCharData(decoder *xml.Decoder) (string, error) {

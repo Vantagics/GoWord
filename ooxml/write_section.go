@@ -195,7 +195,7 @@ func (w *Writer) buildFooterPart(f *document.Footer) headerFooterPart {
 func (w *Writer) generateHeaderXML(h *document.Header) []byte {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(wordMLRoot("w:hdr"))
+	b.WriteString(w.wordMLRoot("w:hdr"))
 
 	// Watermark (added to first header)
 	w.writeWatermarkInHeader(&b)
@@ -213,7 +213,7 @@ func (w *Writer) generateHeaderXML(h *document.Header) []byte {
 func (w *Writer) generateFooterXML(f *document.Footer) []byte {
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(wordMLRoot("w:ftr"))
+	b.WriteString(w.wordMLRoot("w:ftr"))
 	for _, elem := range f.Elements {
 		w.writeElementXML(&b, elem)
 	}

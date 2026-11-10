@@ -18,7 +18,7 @@ func (w *Writer) writeFootnotes() error {
 
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:footnotes xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
+	b.WriteString(fmt.Sprintf(`<w:footnotes xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
 
 	// Separator footnotes (required by spec)
 	b.WriteString(`<w:footnote w:type="separator" w:id="-1">`)
@@ -53,7 +53,7 @@ func (w *Writer) writeEndnotes() error {
 
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:endnotes xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
+	b.WriteString(fmt.Sprintf(`<w:endnotes xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
 
 	// Separator endnotes
 	b.WriteString(`<w:endnote w:type="separator" w:id="-1">`)
@@ -88,7 +88,7 @@ func (w *Writer) writeComments() error {
 
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:comments xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
+	b.WriteString(fmt.Sprintf(`<w:comments xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
 
 	for _, c := range comments {
 		b.WriteString(fmt.Sprintf(`<w:comment w:id="%d" w:author="%s" w:date="%s">`,

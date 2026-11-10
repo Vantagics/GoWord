@@ -30,11 +30,18 @@ func (w *Writer) copyOriginalParts() {
 		if !ok {
 			continue
 		}
-		// Strict OOXML (purl.oclc.org) parts are not copied. The writer emits
-		// transitional markup instead, which Word, LibreOffice, POI, and pandoc
-		// all read.
-		if bytes.Contains(data, []byte("purl.oclc.org/ooxml")) {
+		// Strict OOXML (purl.oclc.org) parts are not copied unless this save
+		// was asked to stay strict. The transitional writer emits markup
+		// Word, LibreOffice, POI, and pandoc all read.
+		if w.doc.Strict() {
+			data = toStrictNamespaces(data)
+		} else if bytes.Contains(data, []byte("purl.oclc.org/ooxml")) {
 			continue
+		}
+		if name == "word/comments.xml" {
+			// LibreOffice refuses a comments part that contains mc:AlternateContent
+			// (a drawing inside a comment). Drop those elements and keep the text.
+			data = stripAlternateContent(data)
 		}
 		_ = w.addZipFile(name, data)
 	}
@@ -55,10 +62,11 @@ func (w *Writer) seedDocRels() {
 	for _, rel := range rels.Relationship {
 		// Strict relationship types point at a different part class than the
 		// transitional parts this writer emits. Drop them and let ensureRel
-		// add the transitional relationship.
-		if strings.Contains(rel.Type, "purl.oclc.org/ooxml") {
+		// add the transitional relationship. A strict save keeps them.
+		if !w.doc.Strict() && strings.Contains(rel.Type, "purl.oclc.org/ooxml") {
 			continue
 		}
+		rel.Type = w.relType(rel.Type)
 		w.docRels = append(w.docRels, relationship{
 			ID:         rel.ID,
 			Type:       rel.Type,
@@ -113,7 +121,7 @@ func (w *Writer) writeFontTable() error {
 
 	var b strings.Builder
 	b.WriteString(xmlHeader())
-	b.WriteString(fmt.Sprintf(`<w:fonts xmlns:w="%s" xmlns:r="%s">`, nsW, nsR))
+	b.WriteString(fmt.Sprintf(`<w:fonts xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
 	for _, name := range names {
 		b.WriteString(fmt.Sprintf(`<w:font w:name="%s"><w:charset w:val="00"/><w:family w:val="auto"/><w:pitch w:val="variable"/></w:font>`, escapeXML(name)))
 	}
