@@ -17,6 +17,14 @@ type Document struct {
 	paragraphStyles map[string]style.ParagraphStyle
 	tableStyles     map[string]style.TableStyle
 	numberingStyles map[string]NumberingStyle
+	// styleFonts holds the rPr of paragraph styles, keyed by style id.
+	styleFonts map[string]style.FontStyle
+	// defaultPara is w:pPrDefault spacing, applied under named styles.
+	defaultPara style.ParagraphStyle
+	// Theme face names from word/theme/theme1.xml. Empty when the package
+	// has no theme or the slot is blank.
+	themeMinor, themeMajor     string
+	themeMinorEA, themeMajorEA string
 
 	// Relationships and media
 	images    []*Image
@@ -84,6 +92,7 @@ func New() *Document {
 		paragraphStyles: make(map[string]style.ParagraphStyle),
 		tableStyles:     make(map[string]style.TableStyle),
 		numberingStyles: make(map[string]NumberingStyle),
+		styleFonts:      make(map[string]style.FontStyle),
 		nextRelID:       1,
 		nextImageID:     1,
 		nextFootnoteID:  1,

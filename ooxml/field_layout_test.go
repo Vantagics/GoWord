@@ -4,9 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/VantageDataChat/GoWord/document"
 )
@@ -130,8 +130,70 @@ func errString(out []byte, err error) error {
 	return strErr{err.Error() + " " + string(out)}
 }
 
-func TestPageCountHelper(t *testing.T) {
-	if strconv.Itoa(2) != "2" {
-		t.Fatal("sanity")
+func TestTOCFieldSeparatorAndNestedPageRef(t *testing.T) {
+	data, err := os.ReadFile("../testdata/word/libreoffice/TOC_field_b.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := ReadFromBytes(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := doc.ExtractText()
+	if !strings.Contains(text, "This is a text\t1") {
+		t.Fatalf("extract = %q", text)
+	}
+	out, err := WriteToBytes(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := ReadFromBytes(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.ExtractText() != text {
+		t.Fatalf("round trip extract\n got %q\nwant %q", again.ExtractText(), text)
+	}
+
+	refData, err := os.ReadFile("../testdata/word/tika/testWORD_refFields.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := ReadFromBytes(refData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nested *document.Field
+	var walk func([]document.Element)
+	walk = func(elems []document.Element) {
+		for _, el := range elems {
+			switch e := el.(type) {
+			case *document.Paragraph:
+				for _, in := range e.Inlines {
+					f, ok := in.(*document.Field)
+					if !ok {
+						continue
+					}
+					for _, c := range f.Content {
+						inner, ok := c.(*document.Field)
+						if ok && strings.Contains(strings.ToUpper(inner.Instr), "PAGEREF") {
+							nested = inner
+						}
+					}
+				}
+			case *document.Sdt:
+				walk(e.Elements)
+			}
+		}
+	}
+	for _, sec := range ref.Sections {
+		walk(sec.Elements)
+	}
+	if nested == nil {
+		t.Fatal("nested PAGEREF was not read")
+	}
+	ref.UpdateFieldsAt(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC))
+	if nested.Result != "1" {
+		t.Fatalf("PAGEREF = %q, want 1 (bookmark is on the first sheet)", nested.Result)
 	}
 }

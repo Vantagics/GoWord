@@ -48,6 +48,35 @@ func (d *Document) AddParagraphStyle(name string, ps style.ParagraphStyle) {
 	}
 }
 
+// SetStyleFont records the character formatting of a paragraph style.
+// Loading a package does not mark styles dirty.
+func (d *Document) SetStyleFont(name string, fs style.FontStyle) {
+	if d == nil || name == "" {
+		return
+	}
+	if d.styleFonts == nil {
+		d.styleFonts = map[string]style.FontStyle{}
+	}
+	d.styleFonts[name] = fs
+}
+
+// SetDefaultParagraph records w:pPrDefault spacing.
+func (d *Document) SetDefaultParagraph(ps style.ParagraphStyle) {
+	if d == nil {
+		return
+	}
+	d.defaultPara = ps
+}
+
+// SetThemeFonts records the major and minor latin and east-Asian faces.
+func (d *Document) SetThemeFonts(minorLatin, majorLatin, minorEast, majorEast string) {
+	if d == nil {
+		return
+	}
+	d.themeMinor, d.themeMajor = minorLatin, majorLatin
+	d.themeMinorEA, d.themeMajorEA = minorEast, majorEast
+}
+
 // AddTableStyle registers a named table style.
 func (d *Document) AddTableStyle(name string, ts style.TableStyle) {
 	d.tableStyles[name] = ts
@@ -463,6 +492,9 @@ func writeRunText(b *strings.Builder, run *Run) {
 func extractElementText(b *strings.Builder, elem Element, doc *Document, ctr map[string][]int, opt ExtractOptions) {
 	switch e := elem.(type) {
 	case *Paragraph:
+		if e.spacer {
+			return
+		}
 		numID, numLevel := doc.numberingFor(e)
 		if label := doc.listLabel(numID, numLevel, ctr); label != "" {
 			b.WriteString(label)

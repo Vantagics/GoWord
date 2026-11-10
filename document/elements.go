@@ -58,6 +58,16 @@ type Paragraph struct {
 	// RawPPr is the original w:pPr element when one was loaded. Direct
 	// formatting Word stored on the paragraph mark is preserved on write.
 	RawPPr string
+	// spacer is an empty paragraph kept only so pagination can see the
+	// blank line. ExtractText skips it.
+	spacer bool
+}
+
+// SetBlank marks a paragraph as an empty line that ExtractText skips.
+func (p *Paragraph) SetBlank(blank bool) {
+	if p != nil {
+		p.spacer = blank
+	}
 }
 
 // Run represents a run of text with uniform formatting.
@@ -322,6 +332,10 @@ type Field struct {
 	Instr  string
 	Result string
 	Font   style.FontStyle
+	// Content is the cached result when it contains tabs or nested fields.
+	// The writer emits Content between the field separator and the end.
+	// A nil Content means Result is a single run of text.
+	Content []Element
 }
 
 // Sdt is a structured document tag (content control).

@@ -97,13 +97,53 @@ func (r *docxReader) applyDocDefaults(raw string) {
 				// returns the integer unchanged, which is what we want to divide.
 				fs.Size = float64(n) / 2
 			}
+		case "spacing":
+			var ps style.ParagraphStyle
+			set := false
+			if n, ok := parseTwips(attrMust(se, "before")); ok {
+				ps.SpaceBefore = n
+				set = true
+			}
+			if n, ok := parseTwips(attrMust(se, "after")); ok {
+				ps.SpaceAfter = n
+				set = true
+			}
+			if n, ok := parseTwips(attrMust(se, "line")); ok {
+				ps.LineSpacing = n
+				set = true
+			}
+			if v, ok := attr(se, "lineRule"); ok {
+				ps.LineRule = v
+				set = true
+			}
+			if set {
+				r.doc.SetDefaultParagraph(ps)
+			}
 		}
 	}
 	if fs.Name != "" {
 		r.doc.SetDefaultFontName(fs.Name)
 	}
+	if v, ok := eastAsiaDefault(raw); ok && v != "" {
+		r.doc.DefaultFont.NameEastAsia = v
+	}
 	if fs.Size > 0 {
 		r.doc.SetDefaultFontSize(fs.Size)
+	}
+}
+
+func eastAsiaDefault(raw string) (string, bool) {
+	dec := xml.NewDecoder(strings.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", false
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "rFonts" {
+			continue
+		}
+		return attr(se, "eastAsia")
 	}
 }
 
@@ -121,6 +161,7 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 	dec := xml.NewDecoder(strings.NewReader(raw))
 	var fs style.FontStyle
 	var ps style.ParagraphStyle
+	var basedOn string
 	seenP, seenR := false, false
 	for {
 		tok, err := dec.Token()
@@ -134,7 +175,7 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 		switch se.Name.Local {
 		case "basedOn":
 			if v, ok := attr(se, "val"); ok {
-				ps.BasedOn = v
+				basedOn = v
 			}
 		case "pPr":
 			pRaw, err := r.captureElement(dec, se)
@@ -154,6 +195,9 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 			seenR = true
 		}
 	}
+	if basedOn != "" {
+		ps.BasedOn = basedOn
+	}
 	switch typ {
 	case "character":
 		if seenR {
@@ -165,7 +209,53 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 		if seenP || typ == "paragraph" || typ == "" {
 			r.doc.AddParagraphStyle(id, ps)
 		}
+		if seenR {
+			r.doc.SetStyleFont(id, fs)
+		}
 	}
+}
+
+func (r *docxReader) readTheme() {
+	data, err := r.readZipFile("word/theme/theme1.xml")
+	if err != nil || len(data) == 0 {
+		return
+	}
+	dec := xml.NewDecoder(strings.NewReader(string(data)))
+	var minorLatin, majorLatin, minorEast, majorEast string
+	slot := ""
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		switch se.Name.Local {
+		case "majorFont":
+			slot = "major"
+		case "minorFont":
+			slot = "minor"
+		case "latin":
+			face, _ := attr(se, "typeface")
+			if slot == "major" && majorLatin == "" {
+				majorLatin = face
+			}
+			if slot == "minor" && minorLatin == "" {
+				minorLatin = face
+			}
+		case "ea":
+			face, _ := attr(se, "typeface")
+			if slot == "major" && majorEast == "" {
+				majorEast = face
+			}
+			if slot == "minor" && minorEast == "" {
+				minorEast = face
+			}
+		}
+	}
+	r.doc.SetThemeFonts(minorLatin, majorLatin, minorEast, majorEast)
 }
 
 func (r *docxReader) readNumberingPart() error {
@@ -613,6 +703,10 @@ func (r *docxReader) applySectPr(sec *document.Section, raw string) {
 				if n, err := strconv.Atoi(v); err == nil {
 					sec.Style.PageNumberStart = &n
 				}
+			}
+		case "docGrid":
+			if n, ok := parseTwips(attrMust(se, "linePitch")); ok {
+				sec.Style.LinePitch = n
 			}
 		case "titlePg":
 			sec.Style.TitlePg = onOff(se)

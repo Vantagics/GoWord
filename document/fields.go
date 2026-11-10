@@ -54,13 +54,13 @@ func (d *Document) fillFields(lay Layout, now time.Time) {
 				pg := lay.PageOf(e)
 				for _, in := range e.Inlines {
 					if f, ok := in.(*Field); ok {
-						f.Result = d.evalField(f.Instr, pg, lay, seq, now)
+						d.evalFieldTree(f, pg, lay, seq, now)
 					}
 				}
 			case *TOC:
 				e.Result = d.tocResult(e.MinDepth, e.MaxDepth, lay)
 			case *Field:
-				e.Result = d.evalField(e.Instr, page, lay, seq, now)
+				d.evalFieldTree(e, page, lay, seq, now)
 			case *Sdt:
 				walk(e.Elements, page)
 			case *Table:
@@ -111,6 +111,61 @@ func (d *Document) tocResult(minD, maxD int, lay Layout) string {
 		walk(sec.Elements)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (d *Document) evalFieldTree(f *Field, page int, lay Layout, seq map[string]int, now time.Time) {
+	if f == nil {
+		return
+	}
+	for _, c := range f.Content {
+		if inner, ok := c.(*Field); ok {
+			d.evalFieldTree(inner, page, lay, seq, now)
+		}
+	}
+	name, _, _ := parseField(f.Instr)
+	switch strings.ToUpper(name) {
+	case "TOC":
+		if fieldHasNested(f) {
+			f.Result = renderFieldContent(f.Content)
+			return
+		}
+		f.Result = d.evalField(f.Instr, page, lay, seq, now)
+		f.Content = nil
+	case "PAGE", "NUMPAGES", "PAGEREF", "REF", "SEQ", "MERGEFIELD", "DATE", "TIME", "CREATEDATE", "PRINTDATE", "SAVEDATE", "IF":
+		f.Result = d.evalField(f.Instr, page, lay, seq, now)
+		f.Content = nil
+	default:
+		if len(f.Content) > 0 {
+			f.Result = renderFieldContent(f.Content)
+		}
+	}
+}
+
+func fieldHasNested(f *Field) bool {
+	for _, c := range f.Content {
+		if _, ok := c.(*Field); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func renderFieldContent(content []Element) string {
+	var b strings.Builder
+	for _, c := range content {
+		switch e := c.(type) {
+		case *Run:
+			if e.Tab {
+				b.WriteByte('\t')
+			}
+			b.WriteString(e.Text)
+		case *Tab:
+			b.WriteByte('\t')
+		case *Field:
+			b.WriteString(e.Result)
+		}
+	}
+	return b.String()
 }
 
 func (d *Document) evalField(instr string, page int, lay Layout, seq map[string]int, now time.Time) string {

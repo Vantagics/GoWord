@@ -365,3 +365,49 @@ Harness on 231 non-encrypted packages. Nothing that passed in round 13 regressed
 - `anchor-position.docx`: pandoc inserts an image placeholder between `A` and `B`. goword keeps `AB`.
 - Nested fields that were saved only as raw `w:fldChar` markup are not re-executed by `UpdateFields`; it evaluates `Field` values and TOC elements. Word still recalculates them on open.
 
+## Round 15 — layout metrics, nested fields, TOC tabs
+
+`EstimateLayout` now uses the document instead of one line height and one character width.
+
+- Paragraph styles are resolved through `basedOn`, including spacing, line rule, indent, and the style's font size. `w:pPrDefault` spacing applies under that. Theme latin faces replace the constructor's Arial when the file never named a font.
+- Latin width comes from a small table (Calibri, Times, Arial, Liberation, Courier, and similar). CJK, kana, hangul, and full-width characters take a full em.
+- Line spacing honors `auto`, `exact`, and `atLeast`. A document grid of at least 240 twips snaps auto lines up to that pitch. Adjacent paragraph spacing collapses to the larger of the two, and space before is dropped at the top of a column.
+- Columns flow down the column and then across. Tables use the cell or grid width. Inline pictures and drawing extents add their height. Empty paragraphs are kept for pagination and skipped by `ExtractText`.
+- `PageCount` is the number of sheets. `PageOf` is the number Word prints, so a section that restarts at 24 does not make `NUMPAGES` return 26. `SheetOf` is the physical sheet.
+
+Checked against LibreOffice PDF export.
+
+| Check | Before | After |
+| --- | --- | --- |
+| Two explicit page breaks | 3 sheets, heading on sheet 3 | same, and it matches the PDF |
+| 80 paragraphs of two sentences | estimate 4, LibreOffice 3 | estimate 3, LibreOffice 3 |
+| Multi-page corpus documents | 8/37 exact, 27/37 within one sheet | 27/41 exact, 36/41 within one sheet |
+| Heading text on the same PDF sheet | 33/67 | 31/67 |
+
+The before heading count compared the printed page number with the PDF sheet, so a restart such as `IllustrativeCases.docx` (starts at 24) could not match. The after count uses the physical sheet. Page-count exact matches rose from 8 to 27. The five that are still off by more than one sheet: `IllustrativeCases.docx` (6 vs 4), the two Chinese counting lists (184 vs 166; they were 70 before), `RP051-Arabic.docx` (4 vs 7), and `testWORD_embedded_pics.docx` (3 vs 5; it was 1). `DB001-Sections.docx` was 2 vs 7 and is now exact.
+
+`UpdateFields` walks nested `fldChar` fields and replaces `PAGE`, `NUMPAGES`, `PAGEREF`, `REF`, `SEQ`, `MERGEFIELD`, `DATE`/`TIME`, and `IF`. A TOC that already contains nested page fields keeps its headings and refreshes those page fields. A TOC with no cached body is still generated from headings. Fields wrapped in `w:hyperlink` stay with the hyperlink; their words are preserved, and the inner field is not a separate `Field` value.
+
+`TOC_field_b.docx` kept a tab between the heading and the page number and then dropped it, so the extract was `text1`. The tab is now part of the field result. Extract is `This is a text`, a tab, and `1`. Round-trip extract matches, and all four reference tools agree.
+
+### New fixtures
+
+Eight more LibreOffice `ooxmlexport` documents (MPL-2.0): equations with captions, a figure label, image crop, a numbered list, a shape, a table caption, and another TOC field.
+
+Harness on 239 non-encrypted packages. Nothing that passed in round 14 regressed.
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 231/239 | 235/239 |
+| pandoc | 208/239 | 235/239 |
+| python-docx | 219/239 | 236/239 |
+| Apache POI XWPF | 217/239 | 238/239 |
+
+### Still open
+
+- The Chinese counting lists are about 18 sheets high, and `IllustrativeCases.docx` is two sheets high. The estimate still is not Word's line breaking. `w:updateFields` stays set so Word replaces the cached numbers.
+- `RP051-Arabic.docx` and picture-heavy files are still short of LibreOffice's page count. Floating images that do not consume line space, and text inside shapes, are only partly measured.
+- pandoc's text for the new equation files is TeX. `ImageCrop.docx` makes pandoc emit an image name and no caption. goword keeps the caption.
+- POI's list labels on `NumberedList.docx` differ on a few tokens (recall 0.88).
+- A field stored inside `w:hyperlink` is not re-executed. The hyperlink text, including the cached page number, is kept.
+

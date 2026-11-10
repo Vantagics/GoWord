@@ -66,6 +66,66 @@ func TestFieldEvaluation(t *testing.T) {
 	}
 }
 
+func TestLayoutUsesFontAndSpacing(t *testing.T) {
+	latin := New()
+	sec := latin.AddSection()
+	sec.AddText(strings.Repeat("a", 80), nil, nil)
+	cjk := New()
+	sec2 := cjk.AddSection()
+	sec2.AddText(strings.Repeat("字", 80), nil, nil)
+	if cjk.EstimateLayout().PageCount < latin.EstimateLayout().PageCount {
+		t.Fatalf("cjk pages %d, latin %d", cjk.EstimateLayout().PageCount, latin.EstimateLayout().PageCount)
+	}
+	// Full-width characters must consume more vertical space than latin.
+	if cjk.EstimateLayout().PageCount == 1 && latin.EstimateLayout().PageCount == 1 {
+		// Both may fit on one A4 page. Compare the sheet of a following paragraph.
+		sec.AddText("tail", nil, nil)
+		sec2.AddText("tail", nil, nil)
+	}
+	spaced := New()
+	s := spaced.AddSection()
+	s.Style.PageHeight = 4000
+	s.Style.PageWidth = 8000
+	s.Style.MarginTop = 200
+	s.Style.MarginBottom = 200
+	for i := 0; i < 6; i++ {
+		p := s.AddText("line", nil, nil)
+		p.Style.SpaceAfter = 600
+		p.Style.LineSpacing = 360
+		p.Style.LineRule = "exact"
+	}
+	if spaced.EstimateLayout().PageCount < 2 {
+		t.Fatalf("spaced pages = %d", spaced.EstimateLayout().PageCount)
+	}
+	wide := New()
+	ws := wide.AddSection()
+	ws.Style.ColumnCount = 2
+	for i := 0; i < 40; i++ {
+		ws.AddText("short", nil, nil)
+	}
+	one := New()
+	osec := one.AddSection()
+	for i := 0; i < 40; i++ {
+		osec.AddText("short", nil, nil)
+	}
+	if wide.EstimateLayout().PageCount > one.EstimateLayout().PageCount {
+		t.Fatalf("columns %d took more pages than a single column %d", wide.EstimateLayout().PageCount, one.EstimateLayout().PageCount)
+	}
+
+	restart := New()
+	rs := restart.AddSection()
+	start := 24
+	rs.Style.PageNumberStart = &start
+	rs.AddText("only", nil, nil)
+	lay := restart.EstimateLayout()
+	if lay.PageCount != 1 {
+		t.Fatalf("physical pages = %d", lay.PageCount)
+	}
+	if lay.PageOf(restart.Paragraphs()[0]) != 24 {
+		t.Fatalf("displayed page = %d", lay.PageOf(restart.Paragraphs()[0]))
+	}
+}
+
 func TestPageBreakLayout(t *testing.T) {
 	doc := New()
 	sec := doc.AddSection()

@@ -118,6 +118,7 @@ func (r *docxReader) read() (*document.Document, error) {
 	_ = r.readAppProperties()
 	_ = r.readSettingsPart()
 	_ = r.readStyles()
+	r.readTheme()
 	_ = r.readNumberingPart()
 	_ = r.readNotes("word/footnotes.xml", true)
 	_ = r.readNotes("word/endnotes.xml", false)

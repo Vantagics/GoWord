@@ -225,7 +225,20 @@ func (w *Writer) writeField(b *strings.Builder, f *document.Field) {
 	b.WriteString(escapeXML(strings.TrimSpace(f.Instr)))
 	b.WriteString(` </w:instrText></w:r>`)
 	b.WriteString(`<w:r><w:fldChar w:fldCharType="separate"/></w:r>`)
-	if f.Result != "" {
+	if len(f.Content) > 0 {
+		for _, el := range f.Content {
+			switch e := el.(type) {
+			case *document.Run:
+				w.writeRun(b, e)
+			case *document.Field:
+				w.writeField(b, e)
+			case *document.Tab:
+				b.WriteString(`<w:r><w:tab/></w:r>`)
+			default:
+				w.writeInline(b, el)
+			}
+		}
+	} else if f.Result != "" {
 		b.WriteString(`<w:r>`)
 		if rpr := fontStyleToXML(&f.Font, nil); rpr != "" {
 			b.WriteString(rpr)

@@ -37,6 +37,9 @@ type SectionStyle struct {
 	TitlePg bool
 	// Gutter is the gutter margin in twips (0 = omit).
 	Gutter int
+	// LinePitch is the document grid line pitch in twips (w:docGrid).
+	// Zero means the section has no grid.
+	LinePitch int
 }
 
 // DefaultSectionStyle returns A4 portrait with standard margins.

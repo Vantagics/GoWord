@@ -101,7 +101,9 @@ func (r *docxReader) readOneBlock(dec *xml.Decoder, start xml.StartElement) (doc
 			return nil, sect, err
 		}
 		if !paragraphHasContent(p) {
-			return nil, sect, nil
+			// Keep the blank line for pagination, but do not let it change
+			// extracted text.
+			p.SetBlank(true)
 		}
 		return p, sect, nil
 	case "tbl":
@@ -151,15 +153,36 @@ func paragraphHasContent(p *document.Paragraph) bool {
 		st.KeepNext || st.KeepLines || st.PageBreakBefore || st.Shading != nil || st.Borders != nil || len(st.TabStops) > 0
 }
 
+type fieldFrame struct {
+	inResult bool
+	fontSet  bool
+	font     style.FontStyle
+	instr    strings.Builder
+	result   strings.Builder
+	content  []document.Element
+}
+
+// fieldState is a stack so a field result can contain another field.
+// Frames are pointers because strings.Builder must not be copied.
 type fieldState struct {
-	active     bool
-	inResult   bool
-	depth      int
-	pendingEnd bool
-	fontSet    bool
-	instr      strings.Builder
-	result     strings.Builder
-	font       style.FontStyle
+	stack   []*fieldFrame
+	pending bool
+}
+
+func (f *fieldState) top() *fieldFrame {
+	if f == nil || len(f.stack) == 0 {
+		return nil
+	}
+	return f.stack[len(f.stack)-1]
+}
+
+func (f *fieldState) active() bool {
+	return f != nil && len(f.stack) > 0
+}
+
+func (f *fieldState) inResult() bool {
+	top := f.top()
+	return top != nil && top.inResult
 }
 
 func (r *docxReader) readParagraph(dec *xml.Decoder) (*document.Paragraph, string, error) {
@@ -265,8 +288,10 @@ func (r *docxReader) readParagraph(dec *xml.Decoder) (*document.Paragraph, strin
 				}
 			}
 		case xml.EndElement:
-			if fld.active {
-				r.emitField(p, &fld)
+			for fld.active() {
+				if f := fld.pop(); f != nil {
+					p.Inlines = append(p.Inlines, f)
+				}
 			}
 			return p, sect, nil
 		}
@@ -509,8 +534,8 @@ func (r *docxReader) readRun(dec *xml.Decoder, p *document.Paragraph, fld *field
 				if err != nil {
 					return err
 				}
-				if fld != nil && fld.active && !fld.inResult {
-					fld.instr.WriteString(text)
+				if top := fld.top(); top != nil && !top.inResult {
+					top.instr.WriteString(text)
 				}
 			case "tab":
 				run.Tab = true
@@ -624,34 +649,21 @@ func noteField(fld *fieldState, kind string) {
 	}
 	switch kind {
 	case "begin":
-		if !fld.active {
-			fld.active = true
-			fld.inResult = false
-			fld.depth = 1
-			fld.instr.Reset()
-			fld.result.Reset()
-		} else {
-			fld.depth++
-		}
+		fld.stack = append(fld.stack, &fieldFrame{})
 	case "separate":
-		if fld.active && fld.depth == 1 {
-			fld.inResult = true
+		if top := fld.top(); top != nil {
+			top.inResult = true
 		}
 	case "end":
-		if !fld.active {
-			return
+		if fld.active() {
+			fld.pending = true
 		}
-		if fld.depth > 1 {
-			fld.depth--
-			return
-		}
-		fld.pendingEnd = true
 	}
 }
 
 func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *document.Run, sawText bool, extras []document.Element) {
-	inField := fld != nil && fld.active
-	if inField && !fld.inResult {
+	inField := fld.active()
+	if inField && !fld.inResult() {
 		// w:t before a field separator is still document text. Unclosed
 		// fields store ordinary words there; instrText stays in the field.
 		if sawText && run.Text != "" {
@@ -661,24 +673,33 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 		for _, ex := range extras {
 			p.Inlines = append(p.Inlines, ex)
 		}
-		if fld.pendingEnd {
+		if fld.pending {
 			r.emitField(p, fld)
 		}
 		return
 	}
-	if inField && fld.inResult {
+	if inField && fld.inResult() {
+		top := fld.top()
+		if run.Tab {
+			tab := &document.Run{Tab: true}
+			top.content = append(top.content, tab)
+			top.result.WriteByte('\t')
+			p.Runs = append(p.Runs, &document.Run{Tab: true})
+		}
 		if sawText || run.Text != "" {
-			fld.result.WriteString(run.Text)
-			if !fld.fontSet {
-				fld.font = run.Style
-				fld.fontSet = true
+			piece := &document.Run{Text: run.Text, Style: run.Style, StyleName: run.StyleName}
+			top.content = append(top.content, piece)
+			top.result.WriteString(run.Text)
+			if !top.fontSet {
+				top.font = run.Style
+				top.fontSet = true
 			}
 			p.Runs = append(p.Runs, &document.Run{Text: run.Text, Style: run.Style, StyleName: run.StyleName})
 		}
 		for _, ex := range extras {
 			p.Inlines = append(p.Inlines, ex)
 		}
-		if fld.pendingEnd {
+		if fld.pending {
 			r.emitField(p, fld)
 		}
 		return
@@ -735,22 +756,36 @@ func runHasProps(fs *style.FontStyle) bool {
 }
 
 func (r *docxReader) emitField(p *document.Paragraph, fld *fieldState) {
+	if f := fld.pop(); f != nil {
+		p.Inlines = append(p.Inlines, f)
+	}
+}
+
+// pop closes the innermost field. A nested field is attached to its parent
+// and pop returns nil. A top-level field is returned to the caller.
+func (fld *fieldState) pop() *document.Field {
+	if !fld.active() {
+		fld.pending = false
+		return nil
+	}
+	frame := fld.stack[len(fld.stack)-1]
+	fld.stack = fld.stack[:len(fld.stack)-1]
+	if frame == nil {
+		return nil
+	}
+	fld.pending = false
 	f := &document.Field{
-		Instr:  strings.TrimSpace(fld.instr.String()),
-		Result: fld.result.String(),
-		Font:   fld.font,
+		Instr:   strings.TrimSpace(frame.instr.String()),
+		Result:  frame.result.String(),
+		Font:    frame.font,
+		Content: frame.content,
 	}
-	p.Inlines = append(p.Inlines, f)
-	if f.Result == "" {
-		// Keep the instruction visible when Word stored no cached result.
-		p.Runs = append(p.Runs, &document.Run{Text: f.Instr})
+	if top := fld.top(); top != nil {
+		top.content = append(top.content, f)
+		top.result.WriteString(f.Result)
+		return nil
 	}
-	fld.active = false
-	fld.pendingEnd = false
-	fld.inResult = false
-	fld.depth = 0
-	fld.instr.Reset()
-	fld.result.Reset()
+	return f
 }
 
 func (r *docxReader) readHyperlink(dec *xml.Decoder, start xml.StartElement, p *document.Paragraph) error {
