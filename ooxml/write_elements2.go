@@ -128,6 +128,22 @@ func (w *Writer) writeHyperlinkInline(b *strings.Builder, h *document.Hyperlink)
 		b.WriteString(fmt.Sprintf(` w:tooltip="%s"`, escapeXML(h.Tooltip)))
 	}
 	b.WriteString(`>`)
+	if len(h.Content) > 0 {
+		for _, el := range h.Content {
+			switch e := el.(type) {
+			case *document.Run:
+				w.writeRun(b, e)
+			case *document.Field:
+				w.writeField(b, e)
+			case *document.Tab:
+				b.WriteString(`<w:r><w:tab/></w:r>`)
+			default:
+				w.writeInline(b, el)
+			}
+		}
+		b.WriteString(`</w:hyperlink>`)
+		return
+	}
 	b.WriteString(`<w:r>`)
 	b.WriteString(`<w:rPr><w:rStyle w:val="Hyperlink"/>`)
 	writeHyperlinkFontProps(b, &h.Font)

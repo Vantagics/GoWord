@@ -411,3 +411,47 @@ Harness on 239 non-encrypted packages. Nothing that passed in round 14 regressed
 - POI's list labels on `NumberedList.docx` differ on a few tokens (recall 0.88).
 - A field stored inside `w:hyperlink` is not re-executed. The hyperlink text, including the cached page number, is kept.
 
+## Round 16 — the remaining page-count outliers
+
+The four documents that were off by more than one sheet now match LibreOffice's PDF page count. Checked again with `pdftotext` form feeds, the same method as round 15.
+
+| Document | Before | After | LibreOffice |
+| --- | --- | --- | --- |
+| Chinese counting lists (both) | 184 | 166 | 166 |
+| `IllustrativeCases.docx` | 6 | 4 | 4 |
+| `RP051-Arabic.docx` | 4 | 7 | 7 |
+| `testWORD_embedded_pics.docx` | 3 | 5 | 5 |
+
+What moved the counts:
+
+- A document grid is no longer stacked on top of a large space-before. Heading lists use the font leading plus the style gap as one block, so 21 headings land on each sheet.
+- Paragraphs with no style now use the style marked `w:default`. In the Arabic document that is 15pt Traditional Arabic (`w:szCs`) with the style's line spacing, not the 10pt latin default. `FontStyle.SizeCS` and `NameCS` hold those values.
+- Nested tables, including a picture in a narrow cell, contribute their row height. Header and footer drawings reduce the body only by the overflow past the header or footer margin, and only the tallest of each.
+- A floating text box taller than about six inches is a page frame. Its text is kept, and the frame itself does not add another sheet. Footnote and endnote bodies are placed after the story. A repeated header row is added again when a table crosses a sheet. `pageBreakBefore` was already honored.
+
+On the multi-page corpus: 34 of 44 exact, and all 44 within one sheet. Round 15 was 27 of 41 exact and 36 of 41 within one sheet, with five documents off by more. Heading text falls on the same PDF sheet for 56 of 70 headings (31 of 67 before). `w:updateFields` is still set.
+
+`UpdateFields` now evaluates a `PAGEREF` (and the other supported fields) nested inside `w:hyperlink`. The hyperlink keeps its runs and the inner field, so a rewrite still shows the heading.
+
+`NumberedList.docx` is not a numbering bug. POI joins adjacent cell paragraphs into one token (`SettingInstructionsMemoryWe`). goword keeps `Setting`, `Instructions`, and `Memory` separate. The other seven tokens match.
+
+### New fixtures
+
+Five more LibreOffice `ooxmlexport` documents (MPL-2.0): a one-page table, rotated text frame, a German STYLEREF field, an auto-width cell, and a shape overlapping a content control.
+
+Harness on 244 non-encrypted packages. Nothing that passed in round 15 regressed. The five new files pass all four reference tools in both directions.
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 236/244 | 240/244 |
+| pandoc | 213/244 | 240/244 |
+| python-docx | 224/244 | 241/244 |
+| Apache POI XWPF | 222/244 | 243/244 |
+
+### Still open
+
+- Ten multi-page documents are one sheet off. None are further off. `LinkedTextBoxes.docx` is 2 versus 1: the linked frames share a page in LibreOffice, and the estimate still spends a second sheet on the story.
+- A few TOC headings are estimated on the following sheet. Arabic headings match the page count but not every heading's sheet, because the PDF reading order and the logical order differ.
+- `keepNext`, `keepLines`, and widow control are read. Applying keep-with-next to every heading in the Chinese lists pushed an extra heading onto the next sheet and lost the exact 166, so those flags do not move a paragraph by themselves.
+- pandoc still prints equations as TeX and invents image names. POI still glues some table cells.
+

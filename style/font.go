@@ -5,7 +5,9 @@ package style
 type FontStyle struct {
 	Name                string  // Font family name, e.g. "Arial"
 	NameEastAsia        string  // East Asian font family name
+	NameCS              string  // Complex-script font family (w:rFonts/@w:cs)
 	Size                float64 // Font size in points
+	SizeCS              float64 // Complex-script size in points (w:szCs)
 	Bold                bool
 	Italic              bool
 	Underline           string // "single", "double", "wave", "dash", "dotted", "none"

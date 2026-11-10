@@ -113,6 +113,9 @@ type Hyperlink struct {
 	Tooltip    string
 	RelID      string // internal relationship ID
 	IsInternal bool   // bookmark link
+	// Content is the hyperlink's inner runs and fields. When non-empty the
+	// writer emits Content, so a field nested inside the hyperlink survives.
+	Content []Element
 }
 
 // Image represents an embedded image.

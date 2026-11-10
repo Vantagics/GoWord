@@ -198,6 +198,9 @@ func (r *docxReader) applyStyle(start xml.StartElement, raw string) {
 	if basedOn != "" {
 		ps.BasedOn = basedOn
 	}
+	if def, ok := attr(start, "default"); ok && (def == "1" || def == "true") && (typ == "paragraph" || typ == "") {
+		r.doc.SetDefaultStyle(id)
+	}
 	switch typ {
 	case "character":
 		if seenR {

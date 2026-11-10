@@ -53,8 +53,11 @@ func (d *Document) fillFields(lay Layout, now time.Time) {
 			case *Paragraph:
 				pg := lay.PageOf(e)
 				for _, in := range e.Inlines {
-					if f, ok := in.(*Field); ok {
+					switch f := in.(type) {
+					case *Field:
 						d.evalFieldTree(f, pg, lay, seq, now)
+					case *Hyperlink:
+						d.evalHyperlink(f, pg, lay, seq, now)
 					}
 				}
 			case *TOC:
@@ -138,6 +141,23 @@ func (d *Document) evalFieldTree(f *Field, page int, lay Layout, seq map[string]
 		if len(f.Content) > 0 {
 			f.Result = renderFieldContent(f.Content)
 		}
+	}
+}
+
+func (d *Document) evalHyperlink(h *Hyperlink, page int, lay Layout, seq map[string]int, now time.Time) {
+	if h == nil {
+		return
+	}
+	for _, c := range h.Content {
+		switch e := c.(type) {
+		case *Field:
+			d.evalFieldTree(e, page, lay, seq, now)
+		case *Hyperlink:
+			d.evalHyperlink(e, page, lay, seq, now)
+		}
+	}
+	if len(h.Content) > 0 {
+		h.Text = renderFieldContent(h.Content)
 	}
 }
 

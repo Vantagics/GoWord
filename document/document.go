@@ -21,6 +21,8 @@ type Document struct {
 	styleFonts map[string]style.FontStyle
 	// defaultPara is w:pPrDefault spacing, applied under named styles.
 	defaultPara style.ParagraphStyle
+	// defaultStyle is the paragraph style marked w:default="1".
+	defaultStyle string
 	// Theme face names from word/theme/theme1.xml. Empty when the package
 	// has no theme or the slot is blank.
 	themeMinor, themeMajor     string

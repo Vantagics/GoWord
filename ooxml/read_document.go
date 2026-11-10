@@ -803,6 +803,10 @@ func (r *docxReader) readHyperlink(dec *xml.Decoder, start xml.StartElement, p *
 		}
 	}
 	h.Tooltip, _ = attr(start, "tooltip")
+	// A fresh field stack so a PAGEREF inside the hyperlink is a Field on
+	// the hyperlink, not a second copy of the surrounding field's result.
+	inner := &document.Paragraph{}
+	var local fieldState
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -811,18 +815,8 @@ func (r *docxReader) readHyperlink(dec *xml.Decoder, start xml.StartElement, p *
 		switch t := tok.(type) {
 		case xml.StartElement:
 			if t.Name.Local == "r" {
-				tmp := &document.Paragraph{}
-				if err := r.readRun(dec, tmp, nil); err != nil {
+				if err := r.readRun(dec, inner, &local); err != nil {
 					return err
-				}
-				for _, run := range tmp.Runs {
-					if run.Tab {
-						h.Text += "\t"
-					}
-					h.Text += run.Text
-					if h.Font.Name == "" && h.Font.Size == 0 {
-						h.Font = run.Style
-					}
 				}
 				continue
 			}
@@ -830,8 +824,29 @@ func (r *docxReader) readHyperlink(dec *xml.Decoder, start xml.StartElement, p *
 			if err != nil {
 				return err
 			}
-			h.Text += visibleText(raw)
+			if strings.TrimSpace(raw) != "" {
+				piece := &document.RawXML{XML: raw, Text: visibleText(raw)}
+				inner.Inlines = append(inner.Inlines, piece)
+				if piece.Text != "" {
+					inner.Runs = append(inner.Runs, &document.Run{Text: piece.Text})
+				}
+			}
 		case xml.EndElement:
+			for local.active() {
+				if f := local.pop(); f != nil {
+					inner.Inlines = append(inner.Inlines, f)
+				}
+			}
+			h.Content = inner.Inlines
+			for _, run := range inner.Runs {
+				if run.Tab {
+					h.Text += "\t"
+				}
+				h.Text += run.Text
+				if h.Font.Name == "" && h.Font.Size == 0 && run.Text != "" {
+					h.Font = run.Style
+				}
+			}
 			p.Inlines = append(p.Inlines, h)
 			if h.Text != "" {
 				p.Runs = append(p.Runs, &document.Run{Text: h.Text, Style: h.Font})
@@ -910,6 +925,9 @@ func interpretRPr(raw string) (style.FontStyle, string, bool) {
 			}
 			if v, ok := attr(se, "eastAsia"); ok {
 				fs.NameEastAsia = v
+			}
+			if v, ok := attr(se, "cs"); ok && v != "" {
+				fs.NameCS = v
 			}
 			if _, ok := attr(se, "asciiTheme"); ok {
 				simple = false
@@ -1008,8 +1026,11 @@ func interpretRPr(raw string) (style.FontStyle, string, bool) {
 				simple = false
 			}
 		case "szCs":
-			if n, err := strconv.Atoi(attrMust(se, "val")); err == nil && fs.Size > 0 && int(fs.Size*2) != n {
-				simple = false
+			if n, err := strconv.Atoi(attrMust(se, "val")); err == nil {
+				fs.SizeCS = float64(n) / 2
+				if fs.Size > 0 && int(fs.Size*2) != n {
+					simple = false
+				}
 			}
 		}
 	}

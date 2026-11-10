@@ -60,6 +60,14 @@ func (d *Document) SetStyleFont(name string, fs style.FontStyle) {
 	d.styleFonts[name] = fs
 }
 
+// SetDefaultStyle records the paragraph style marked as the document default.
+func (d *Document) SetDefaultStyle(id string) {
+	if d == nil {
+		return
+	}
+	d.defaultStyle = id
+}
+
 // SetDefaultParagraph records w:pPrDefault spacing.
 func (d *Document) SetDefaultParagraph(ps style.ParagraphStyle) {
 	if d == nil {

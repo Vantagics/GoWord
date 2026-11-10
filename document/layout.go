@@ -72,15 +72,37 @@ func (d *Document) EstimateLayout() Layout {
 			cur.page = *st.pageStart
 		}
 		cur.applySection(st)
+		cur.reserveChrome(sec)
 		for _, el := range sec.Elements {
 			cur.place(d, el, &lay)
 		}
 	}
+	cur.placeNotes(d, &lay)
 	if cur.physical < 1 {
 		cur.physical = 1
 	}
 	lay.PageCount = cur.physical
 	return lay
+}
+
+func (c *pageCursor) placeNotes(doc *Document, lay *Layout) {
+	if doc == nil {
+		return
+	}
+	if len(doc.Footnotes()) == 0 && len(doc.Endnotes()) == 0 {
+		return
+	}
+	c.addHeight(c.line)
+	for _, fn := range doc.Footnotes() {
+		for _, el := range fn.Elements {
+			c.place(doc, el, lay)
+		}
+	}
+	for _, en := range doc.Endnotes() {
+		for _, el := range en.Elements {
+			c.place(doc, el, lay)
+		}
+	}
 }
 
 type styleSection struct {
@@ -303,18 +325,15 @@ func (c *pageCursor) placeParagraph(doc *Document, p *Paragraph, lay *Layout) {
 		c.advanceSheet()
 	}
 	before := m.before
-	if c.y == 0 {
+	// Drop a small space-before at the top of a page. A heading gap of
+	// half an inch or more still counts, which is what keeps a long list of
+	// spaced headings from packing an extra line onto every sheet.
+	if c.y == 0 && before < 200 {
 		before = 0
 	} else if c.pendingAfter > before {
 		before = c.pendingAfter
 	}
 	c.pendingAfter = 0
-	if before > 0 {
-		c.y += before
-		if c.y >= c.usableH {
-			c.advanceColumn()
-		}
-	}
 	h := c.paragraphBodyHeight(p, m)
 	if ih := inlineExtra(p); ih > 0 {
 		if strings.TrimSpace(paragraphPlain(p)) == "" {
@@ -324,6 +343,12 @@ func (c *pageCursor) placeParagraph(doc *Document, p *Paragraph, lay *Layout) {
 		} else {
 			h += ih
 		}
+	}
+	if before > 0 {
+		h += before
+	}
+	if pageSizedAnchor(p) && h > c.usableH {
+		h = c.usableH
 	}
 	displayed, sheet := c.addHeight(h)
 	c.pendingAfter = m.after
@@ -343,52 +368,118 @@ func (c *pageCursor) placeTable(doc *Document, t *Table, lay *Layout) {
 			fallback = 400
 		}
 	}
+	headerH := 0
 	for _, row := range t.Rows {
-		content := c.line
-		for _, cell := range row.Cells {
-			w := cellWidth(t, cell, fallback)
-			ch := 0
-			for _, el := range cell.Elements {
-				if p, ok := el.(*Paragraph); ok {
-					m := doc.metricsFor(p)
-					saved := c.colWidth
-					c.colWidth = w
-					ch += c.paragraphBodyHeight(p, m)
-					c.colWidth = saved
-				}
-			}
-			if ch > content {
-				content = ch
-			}
+		rh := c.rowHeight(doc, t, row, fallback)
+		if row.Style.IsHeader {
+			headerH = rh
 		}
-		rh := content
-		switch row.Style.HeightRule {
-		case "exact":
-			if row.Style.Height > 0 {
-				rh = row.Style.Height
-			}
-		case "atLeast":
-			if row.Style.Height > rh {
-				rh = row.Style.Height
-			}
-		default:
-			if row.Style.Height > rh {
-				rh = row.Style.Height
-			}
+		if !row.Style.IsHeader && headerH > 0 && c.y > 0 && c.y+rh > c.usableH {
+			c.advanceColumn()
+			c.addHeight(headerH)
 		}
 		displayed, sheet := c.addHeight(rh)
-		for _, cell := range row.Cells {
-			for _, el := range cell.Elements {
-				if p, ok := el.(*Paragraph); ok {
-					lay.paraPage[p] = displayed
-					lay.paraSheet[p] = sheet
-					savedPage, savedSheet := c.page, c.physical
-					c.page, c.physical = displayed, sheet
-					c.noteBookmarks(p, lay)
-					c.page, c.physical = savedPage, savedSheet
+		c.stampTableRow(doc, row, displayed, sheet, lay)
+	}
+}
+
+func (c *pageCursor) rowHeight(doc *Document, t *Table, row *Row, fallback int) int {
+	content := c.line
+	for _, cell := range row.Cells {
+		w := cellWidth(t, cell, fallback)
+		saved := c.colWidth
+		c.colWidth = w
+		ch := 0
+		for _, el := range cell.Elements {
+			ch += c.blockHeight(doc, el)
+		}
+		c.colWidth = saved
+		if ch > content {
+			content = ch
+		}
+	}
+	rh := content
+	switch row.Style.HeightRule {
+	case "exact":
+		if row.Style.Height > 0 {
+			rh = row.Style.Height
+		}
+	default:
+		if row.Style.Height > rh {
+			rh = row.Style.Height
+		}
+	}
+	return rh
+}
+
+func (c *pageCursor) blockHeight(doc *Document, el Element) int {
+	switch e := el.(type) {
+	case *Paragraph:
+		m := doc.metricsFor(e)
+		h := c.paragraphBodyHeight(e, m)
+		if ih := inlineExtra(e); ih > h && strings.TrimSpace(paragraphPlain(e)) == "" {
+			h = ih
+		} else if ih > 0 && strings.TrimSpace(paragraphPlain(e)) != "" {
+			h += ih
+		}
+		return h
+	case *Table:
+		sum := 0
+		fallback := c.colWidth
+		if len(e.Rows) > 0 && len(e.Rows[0].Cells) > 0 {
+			fallback = c.colWidth / len(e.Rows[0].Cells)
+		}
+		for _, row := range e.Rows {
+			sum += c.rowHeight(doc, e, row, fallback)
+		}
+		return sum
+	case *Sdt:
+		h := 0
+		for _, ch := range e.Elements {
+			h += c.blockHeight(doc, ch)
+		}
+		return h
+	case *Image:
+		if h := imageTwips(e); h > 0 {
+			return h
+		}
+		return c.line
+	case *RawXML:
+		h := drawingTwips(e.XML)
+		if th := c.textBlockHeight(e.Text, doc.metricsFor(nil)); th > h {
+			h = th
+		}
+		return h
+	default:
+		return 0
+	}
+}
+
+func (c *pageCursor) stampTableRow(doc *Document, row *Row, displayed, sheet int, lay *Layout) {
+	var walk func([]Element)
+	walk = func(elems []Element) {
+		for _, el := range elems {
+			switch e := el.(type) {
+			case *Paragraph:
+				lay.paraPage[e] = displayed
+				lay.paraSheet[e] = sheet
+				savedPage, savedSheet := c.page, c.physical
+				c.page, c.physical = displayed, sheet
+				c.noteBookmarks(e, lay)
+				c.page, c.physical = savedPage, savedSheet
+			case *Table:
+				for _, r := range e.Rows {
+					for _, cell := range r.Cells {
+						walk(cell.Elements)
+					}
 				}
+			case *Sdt:
+				walk(e.Elements)
 			}
 		}
+	}
+	for _, cell := range row.Cells {
+		walk(cell.Elements)
 	}
 }
 
@@ -419,8 +510,13 @@ type paraMetrics struct {
 	size          float64
 	face          string
 	east          string
+	csSize        float64
+	csFace        string
 	bold          bool
 	pageBreak     bool
+	keepNext      bool
+	keepLines     bool
+	widow         bool
 }
 
 func (d *Document) metricsFor(p *Paragraph) paraMetrics {
@@ -487,6 +583,18 @@ func (d *Document) metricsFor(p *Paragraph) paraMetrics {
 		if fs.Bold {
 			m.bold = true
 		}
+		if fs.SizeCS > 0 {
+			m.csSize = fs.SizeCS
+		}
+		if fs.NameCS != "" {
+			m.csFace = fs.NameCS
+		}
+		if ps.KeepNext {
+			m.keepNext = true
+		}
+		if ps.KeepLines {
+			m.keepLines = true
+		}
 	}
 	apply(d.defaultPara, style.FontStyle{}, false)
 	if p == nil {
@@ -495,6 +603,9 @@ func (d *Document) metricsFor(p *Paragraph) paraMetrics {
 	var chain []string
 	seen := map[string]bool{}
 	name := p.StyleName
+	if name == "" {
+		name = d.defaultStyle
+	}
 	for name != "" && !seen[name] && len(chain) < 12 {
 		seen[name] = true
 		chain = append(chain, name)
@@ -522,9 +633,30 @@ func (d *Document) metricsFor(p *Paragraph) paraMetrics {
 		if r.Style.Bold {
 			m.bold = true
 		}
+		if r.Style.SizeCS > 0 {
+			m.csSize = r.Style.SizeCS
+		}
+		if r.Style.NameCS != "" {
+			m.csFace = r.Style.NameCS
+		}
 		break
 	}
+	if complexScript(paragraphPlain(p)) && m.csSize > 0 {
+		m.size = m.csSize
+		if m.csFace != "" {
+			m.face = m.csFace
+		}
+	}
 	return m
+}
+
+func complexScript(s string) bool {
+	for _, r := range s {
+		if r >= 0x0590 && r <= 0x08FF {
+			return true
+		}
+	}
+	return false
 }
 
 func headingish(name string) bool {
@@ -590,6 +722,12 @@ func (c *pageCursor) wrapParagraph(p *Paragraph, m paraMetrics) (lines int, maxS
 		if font.NameEastAsia == "" {
 			font.NameEastAsia = m.east
 		}
+		if font.SizeCS <= 0 {
+			font.SizeCS = m.csSize
+		}
+		if font.NameCS == "" {
+			font.NameCS = m.csFace
+		}
 		if font.Size > maxSize {
 			maxSize = font.Size
 		}
@@ -606,7 +744,14 @@ func (c *pageCursor) wrapParagraph(p *Paragraph, m paraMetrics) (lines int, maxS
 				first = false
 				continue
 			}
-			w := runeTwips(ch, font, m.bold)
+			face := font
+			if face.SizeCS > 0 && ch >= 0x0590 && ch <= 0x08FF {
+				face.Size = face.SizeCS
+				if face.NameCS != "" {
+					face.Name = face.NameCS
+				}
+			}
+			w := runeTwips(ch, face, m.bold)
 			lim := limit
 			if first {
 				lim = firstLimit
@@ -644,7 +789,7 @@ func (c *pageCursor) lineBox(m paraMetrics) int {
 	if size <= 0 {
 		size = 11
 	}
-	single := int(size * 20 * 1.15)
+	single := int(size * 20 * lineFactor(m.face))
 	if single < 200 {
 		single = 200
 	}
@@ -665,15 +810,36 @@ func (c *pageCursor) lineBox(m paraMetrics) int {
 		}
 		h = single * mult / 240
 	}
-	if c.pitch >= 240 && m.rule != "exact" {
-		if h < c.pitch {
-			h = c.pitch
-		}
+	// Snap plain lines up to the document grid. A heading that already has
+	// space-before, or a paragraph with no explicit line value, is left at
+	// the font's own leading. Stacking the grid on top of heading spacing
+	// overshoots LibreOffice, and a grid on an unspecified line does too.
+	if c.pitch >= 240 && m.rule != "exact" && m.line > 0 && m.before < 200 && h < c.pitch {
+		h = c.pitch
+	}
+	if c.pitch >= 240 && m.rule != "exact" && h < 240 {
+		h = 240
 	}
 	if h < 160 {
 		h = 160
 	}
 	return h
+}
+
+func lineFactor(name string) float64 {
+	n := strings.ToLower(name)
+	switch {
+	case strings.Contains(n, "georgia"), strings.Contains(n, "cambria"), strings.Contains(n, "caladea"):
+		return 1.22
+	case strings.Contains(n, "times"), strings.Contains(n, "liberation serif"), strings.Contains(n, "perpetua"), strings.Contains(n, "cg times"):
+		return 1.08
+	case strings.Contains(n, "arabic"):
+		return 1.10
+	case strings.Contains(n, "calibri"), strings.Contains(n, "carlito"), strings.Contains(n, "aptos"):
+		return 1.15
+	default:
+		return 1.15
+	}
 }
 
 func runeTwips(r rune, font style.FontStyle, bold bool) int {
@@ -774,11 +940,78 @@ func inlineExtra(p *Paragraph) int {
 	return h
 }
 
+func (c *pageCursor) reserveChrome(sec *Section) {
+	if sec == nil {
+		return
+	}
+	extra := 0
+	hh, fh := 0, 0
+	for _, h := range sec.Headers {
+		if ch := chromeHeight(h.Elements); ch > hh {
+			hh = ch
+		}
+	}
+	for _, f := range sec.Footers {
+		if ch := chromeHeight(f.Elements); ch > fh {
+			fh = ch
+		}
+	}
+	if hh > sec.Style.HeaderHeight {
+		extra += hh - sec.Style.HeaderHeight
+	}
+	if fh > sec.Style.FooterHeight {
+		extra += fh - sec.Style.FooterHeight
+	}
+	if extra > 0 && extra < c.usableH/2 {
+		c.usableH -= extra
+	}
+}
+
+func chromeHeight(elems []Element) int {
+	h := 0
+	for _, el := range elems {
+		switch e := el.(type) {
+		case *Paragraph:
+			if len(e.Runs) > 0 || len(e.Inlines) > 0 {
+				h += 240
+			}
+			h += inlineExtra(e)
+		case *Image:
+			h += imageTwips(e)
+		case *RawXML:
+			h += drawingTwips(e.XML)
+		case *Table:
+			h += 240 * len(e.Rows)
+		}
+	}
+	return h
+}
+
+func pageSizedAnchor(p *Paragraph) bool {
+	if p == nil {
+		return false
+	}
+	for _, in := range p.Inlines {
+		raw, ok := in.(*RawXML)
+		if !ok || !strings.Contains(raw.XML, ":anchor") {
+			continue
+		}
+		if strings.Contains(raw.XML, `cy="7`) || strings.Contains(raw.XML, `cy="8`) || strings.Contains(raw.XML, `cy="9`) {
+			return true
+		}
+	}
+	return false
+}
+
 func drawingTwips(xml string) int {
 	if xml == "" {
 		return 0
 	}
-	if strings.Contains(xml, "wrapNone") && !strings.Contains(xml, ":inline") {
+	// A floating shape behind the text does not add flow height. A text box
+	// still occupies its extent even with no wrap.
+	behind := strings.Contains(xml, "wrapNone") || strings.Contains(xml, `behindDoc="1"`)
+	boxed := strings.Contains(xml, "txbx") || strings.Contains(xml, "textbox")
+	if behind && !boxed && !strings.Contains(xml, ":inline") {
 		return 0
 	}
 	best := 0
@@ -799,6 +1032,12 @@ func drawingTwips(xml string) int {
 			continue
 		}
 		tw := int(n / common.EmuPerTwip)
+		// A floating frame taller than about six inches is a page-sized
+		// text box. Linked boxes of that size sit on the page; they do not
+		// each add a sheet of flow.
+		if tw > 9000 && strings.Contains(xml, ":anchor") {
+			continue
+		}
 		if tw > best {
 			best = tw
 		}
