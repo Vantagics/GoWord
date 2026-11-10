@@ -242,6 +242,64 @@ func TestStrictWriteIsOptIn(t *testing.T) {
 	}
 }
 
+func TestDisplayedNoteMarks(t *testing.T) {
+	fn, err := Read("../testdata/word/docxjs/footnote.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.ReplaceAll(fn.ExtractText(), "\n", "")
+	if !strings.Contains(text, "1content") || !strings.Contains(text, "content22") {
+		t.Fatalf("footnote marks = %q", fn.ExtractText())
+	}
+	en, err := Read("../testdata/word/mammoth/endnotes.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.ReplaceAll(en.ExtractText(), "\n", "")
+	if !strings.Contains(got, "Ouchi") || !strings.Contains(got, ".ii") {
+		t.Fatalf("endnote marks = %q", en.ExtractText())
+	}
+	plain, err := Read("../testdata/word/poi/footnotes.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plain.ExtractText(), "prostoy1") {
+		t.Fatalf("glued footnote = %q", plain.ExtractText())
+	}
+}
+
+func TestOmittedColumnsAndShortPage(t *testing.T) {
+	styles, err := Read("../testdata/word/phpword/reader-styles.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(styles.Sections) < 3 {
+		t.Fatalf("sections = %d", len(styles.Sections))
+	}
+	if styles.Sections[1].Style.ColumnCount != 2 {
+		t.Fatalf("demo columns = %d", styles.Sections[1].Style.ColumnCount)
+	}
+	if styles.Sections[2].Style.ColumnCount != 1 {
+		t.Fatalf("following section columns = %d, want 1", styles.Sections[2].Style.ColumnCount)
+	}
+	short, err := Read("../testdata/word/libreoffice/tdf107889.docx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := short.EstimateLayout().PageCount; n != 3 {
+		t.Fatalf("short page count = %d, want 3", n)
+	}
+}
+
+func TestFormatNoteNumber(t *testing.T) {
+	if formatNoteNumber(2, "lowerRoman") != "ii" || formatNoteNumber(4, "upperRoman") != "IV" {
+		t.Fatal(formatNoteNumber(2, "lowerRoman"), formatNoteNumber(4, "upperRoman"))
+	}
+	if formatNoteNumber(27, "lowerLetter") != "aa" || formatNoteNumber(3, "") != "3" {
+		t.Fatal(formatNoteNumber(27, "lowerLetter"), formatNoteNumber(3, ""))
+	}
+}
+
 func readZip(t *testing.T, data []byte, name string) string {
 	t.Helper()
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))

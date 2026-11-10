@@ -199,10 +199,12 @@ func newPageCursor(st styleSection) *pageCursor {
 func (c *pageCursor) applySection(st styleSection) {
 	h := st.height - st.marginTop - st.marginBottom
 	w := st.width - st.marginLeft - st.marginRight - st.gutter
-	if h < 2000 {
+	// A missing page size can compute a tiny or negative body. A real short
+	// page, such as a three-inch landscape section, keeps the height it declared.
+	if h < 400 {
 		h = 2000
 	}
-	if w < 2000 {
+	if w < 400 {
 		w = 2000
 	}
 	cols := st.columns

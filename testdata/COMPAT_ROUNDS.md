@@ -499,3 +499,56 @@ Harness on 248 non-encrypted packages. Nothing that passed in round 16 regressed
 - `reader.docx` moved from one short to one high when the column count was corrected. `testWORD_embedded_pics.docx` moved from exact to one short when header drawings stopped shrinking the body.
 - Heading sheet agreement is still limited by reading order in the Arabic document and by a few headings that sit on the next sheet.
 
+## Round 18 — short pages, section columns, and note marks
+
+The original 44 multi-page documents are unchanged as a score: 37 exact, and all 44 within one sheet. Heading text, using the last page where the words appear, still agrees on 63 of 70. None of those heading documents changed pagination. `w:updateFields` stays set.
+
+Two estimates did move. `tdf107889.docx` is a landscape page about three inches tall. The body is 1666 twips, and the estimator had been raising any body under 2000 twips up to 2000, so the six-row table and the following section fit on two sheets. The floor now applies only when the computed body is under 400 twips. The file is 3 sheets, which matches the PDF. It is scored apart from the 44, as in round 17, where it was 2 versus 3.
+
+`reader-styles.docx` has a two-column demonstration and then a sectPr with no `w:cols`. That section was keeping the copied count of 2. A missing `w:cols` is one column. With one column, the headings that start with `w:br w:type="page"` are charged the same extra sheet as in `reader.docx`, so the estimate moved from 3 to 5. LibreOffice is 4. It is still one sheet off.
+
+| Document | Before | After | LibreOffice | What the PDF shows |
+| --- | --- | --- | --- | --- |
+| `extended-props.docx` | 4 | 4 | 3 | The story fits on sheet 1 in LibreOffice. The estimate uses the 360-twip grid plus the paragraph's space-after, so the highlight and the table open sheet 2, and the two following breaks open sheets 3 and 4. `sct-first-page-hdrftr.docx` has the same pair of breaks and LibreOffice keeps the blank sheet there (6 and 6), so the breaks stay. |
+| `alphabeticalIndex_MultipleColumns.docx` | 3 | 3 | 2 by form feed, 3 by `pdfinfo` | The index is four columns and the prose after it is one column. Both end on a blank sheet. The form-feed count drops that sheet. |
+| `reader.docx` | 5 | 5 | 4 | `Tables` and `Images` are headings whose first run is a page break. The height of that paragraph includes a full sheet, and in one column that advances twice. Counting the break once drops `Sample_11_ReadWord2007.docx` from 3 to 2, so the height stays. |
+| `reader-styles.docx` | 3 | 5 | 4 | The section after the two-column demo is one column. The same heading break then adds a sheet. |
+| `form_footnotes.docx` | 3 | 3 | 2 | The instruction table at the end starts 162 twips past the bottom of sheet 2. |
+| `DB002-Sections-With-Headers.docx` | 5 | 5 | 4 | Blank paragraphs are 520 twips on the 360-twip grid. Letter height holds 24 of them, so the 100 blanks reach sheet 5. The landscape sister `DB001-Sections.docx` holds an exact multiple and stays at 7. |
+| `testWORD_embedded_pics.docx` | 4 | 4 | 5 | The endnote shares the last picture sheet. LibreOffice leaves a blank sheet and puts the endnote on sheet 5. Header drawings stay capped so they do not shrink the body. |
+
+### Samples scored apart from the 44
+
+| Document | Estimate | LibreOffice |
+| --- | --- | --- |
+| `tdf99140.docx` | 2 | 2 |
+| `tdf107889.docx` | 3 | 3 |
+| `fdo76098.docx` | 2 | 2 |
+| `tdf102466.docx` | 11 | 11 |
+| `tdf104061_tableSectionColumns.docx` | 3 | 2 |
+| `FDO76248.docx` | 5 | 3 |
+
+`tdf102466.docx` and `fdo76098.docx` match. `tdf104061_tableSectionColumns.docx` is one sheet high on a grid full of blank paragraphs and section columns. `FDO76248.docx` is two sheets high on a dense worksheet. They are here so a later change that only memorizes the original 44 still has something to miss.
+
+### Note marks
+
+A footnote or endnote reference is the displayed number. Separator and continuation notes are not part of the sequence, so docxjs ids 2 and 3 are marks 1 and 2 (`1content`, `content22`). `w:numFmt` is honored: the mammoth endnotes are `lowerRoman`, and the extract is `Ouchi.ii`. The mark is not padded with spaces. LibreOffice's plain text sits the mark against the neighboring word, and a space on either side dropped `Ouch1` and `prostoy1` out of that token set.
+
+### Harness
+
+252 non-encrypted packages. Nothing that passed in round 17 regressed. LibreOffice now reads `docxjs/footnote.docx` and `mammoth/endnotes.docx`. python-docx's read of `tdf104061_tableSectionColumns.docx` repeats merged cells, so its recall on that new file is low; LibreOffice, pandoc, and POI read it, and the round trip agrees.
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 246/252 | 248/252 |
+| pandoc | 221/252 | 248/252 |
+| python-docx | 231/252 | 249/252 |
+| Apache POI XWPF | 230/252 | 251/252 |
+
+### Still open
+
+- The seven documents in the table are still one sheet off. `reader-styles.docx` is one high after the column correction. `FDO76248.docx`, scored separately, is two high.
+- A page break that shares a paragraph with the heading text still consumes an extra sheet in a one-column section. Removing that sheet loses the exact count on `Sample_11_ReadWord2007.docx`.
+- Heading sheet agreement is still limited by reading order in the Arabic document and by a few headings that sit on the next sheet.
+- pandoc still prints equations as TeX and invents image names. POI still glues some table cells. python-docx still rejects docm, dotx, and strict packages.
+

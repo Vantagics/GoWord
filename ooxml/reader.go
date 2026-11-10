@@ -83,6 +83,10 @@ type docxReader struct {
 	curPart      string
 	footnotes    map[int]*document.Footnote
 	endnotes     map[int]*document.Endnote
+	fnDisplay    map[int]int
+	enDisplay    map[int]int
+	fnNumFmt     string
+	enNumFmt     string
 	comments     map[int]*document.Comment
 	imagesByName map[string]*document.Image
 	// caps tracks the original XML text behind each decoder so captured
@@ -99,6 +103,8 @@ func (r *docxReader) read() (*document.Document, error) {
 	r.relsByPart = map[string]map[string]relInfo{}
 	r.footnotes = map[int]*document.Footnote{}
 	r.endnotes = map[int]*document.Endnote{}
+	r.fnDisplay = map[int]int{}
+	r.enDisplay = map[int]int{}
 	r.comments = map[int]*document.Comment{}
 	r.imagesByName = map[string]*document.Image{}
 	r.doc.SetLoading(true)

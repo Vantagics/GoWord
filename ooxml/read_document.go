@@ -12,6 +12,7 @@ import (
 )
 
 func (r *docxReader) readDocument() error {
+	r.readNoteFormats()
 	data, err := r.readZipFile(r.docPart)
 	if err != nil {
 		data, err = r.readZipFile("word/document.xml")
@@ -731,14 +732,15 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 				p.Runs = append(p.Runs, &document.Run{Text: e.Base})
 			}
 		case *document.Footnote:
-			// The reference number is not a w:t. Surface it so extracted text
-			// matches what Word, LibreOffice, and POI show at the anchor.
+			// The mark is not a w:t. Write the displayed number with no
+			// padding: Word and the plain-text exporters sit it against the
+			// neighboring word ("1content", "Ouch1").
 			if e.ID > 0 {
-				p.Runs = append(p.Runs, &document.Run{Text: strconv.Itoa(e.ID)})
+				p.Runs = append(p.Runs, &document.Run{Text: r.noteLabel(true, e.ID)})
 			}
 		case *document.Endnote:
 			if e.ID > 0 {
-				p.Runs = append(p.Runs, &document.Run{Text: strconv.Itoa(e.ID)})
+				p.Runs = append(p.Runs, &document.Run{Text: r.noteLabel(false, e.ID)})
 			}
 		}
 	}
@@ -1089,9 +1091,161 @@ func (r *docxReader) imageFor(target, raw string) *document.Image {
 			img.Style.Height = common.EmuToPixel(n)
 		}
 	}
+	// VML pictures store size in the shape style, not in wp:extent.
+	if img.Style.Height == 0 {
+		if tw := vmlStyleTwips(raw, "height:"); tw > 0 {
+			img.Style.Height = tw * 96 / 1440
+			if img.Style.Height < 1 {
+				img.Style.Height = 1
+			}
+		}
+	}
+	if img.Style.Width == 0 {
+		if tw := vmlStyleTwips(raw, "width:"); tw > 0 {
+			img.Style.Width = tw * 96 / 1440
+		}
+	}
 	r.doc.AppendImage(img)
 	r.imagesByName[base] = img
 	return img
+}
+
+func vmlStyleTwips(raw, key string) int {
+	i := strings.Index(raw, key)
+	if i < 0 {
+		return 0
+	}
+	rest := raw[i+len(key):]
+	end := 0
+	for end < len(rest) && (rest[end] == '.' || (rest[end] >= '0' && rest[end] <= '9')) {
+		end++
+	}
+	if end == 0 {
+		return 0
+	}
+	f, err := strconv.ParseFloat(rest[:end], 64)
+	if err != nil || f <= 0 {
+		return 0
+	}
+	return int(f * 20)
+}
+
+// readNoteFormats records w:numFmt from footnotePr and endnotePr. The
+// reference marks are written while the body is read, and the sectPr that
+// carries the format is at the end of the section, so this scan runs first.
+func (r *docxReader) readNoteFormats() {
+	data, err := r.readZipFile(r.docPart)
+	if err != nil {
+		return
+	}
+	s := string(data)
+	if v := numFmtInside(s, "footnotePr"); v != "" {
+		r.fnNumFmt = v
+	}
+	if v := numFmtInside(s, "endnotePr"); v != "" {
+		r.enNumFmt = v
+	}
+}
+
+func numFmtInside(xml, parent string) string {
+	open := "<w:" + parent
+	i := strings.Index(xml, open)
+	if i < 0 {
+		return ""
+	}
+	rest := xml[i:]
+	end := strings.Index(rest, "</w:"+parent)
+	if end < 0 {
+		end = len(rest)
+	}
+	chunk := rest[:end]
+	key := `w:val="`
+	j := strings.Index(chunk, "<w:numFmt")
+	if j < 0 {
+		return ""
+	}
+	chunk = chunk[j:]
+	k := strings.Index(chunk, key)
+	if k < 0 {
+		return ""
+	}
+	chunk = chunk[k+len(key):]
+	n := strings.IndexByte(chunk, '"')
+	if n <= 0 {
+		return ""
+	}
+	return chunk[:n]
+}
+
+func (r *docxReader) noteLabel(footnote bool, id int) string {
+	fmtName := r.enNumFmt
+	if footnote {
+		fmtName = r.fnNumFmt
+	}
+	return formatNoteNumber(r.noteNumber(footnote, id), fmtName)
+}
+
+func (r *docxReader) noteNumber(footnote bool, id int) int {
+	src := r.enDisplay
+	if footnote {
+		src = r.fnDisplay
+	}
+	if src != nil {
+		if n, ok := src[id]; ok && n > 0 {
+			return n
+		}
+	}
+	return id
+}
+
+// formatNoteNumber renders a footnote or endnote mark. Separator notes are
+// not part of the sequence, so the first real note is 1 even when its w:id
+// is higher. numFmt follows the section's footnotePr or endnotePr.
+func formatNoteNumber(n int, fmtName string) string {
+	if n <= 0 {
+		return strconv.Itoa(n)
+	}
+	switch fmtName {
+	case "lowerRoman":
+		return strings.ToLower(romanNumeral(n))
+	case "upperRoman":
+		return romanNumeral(n)
+	case "lowerLetter":
+		return letterNumber(n, 'a')
+	case "upperLetter":
+		return letterNumber(n, 'A')
+	default:
+		return strconv.Itoa(n)
+	}
+}
+
+func romanNumeral(n int) string {
+	vals := []int{1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1}
+	syms := []string{"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"}
+	var b strings.Builder
+	for i, v := range vals {
+		for n >= v {
+			b.WriteString(syms[i])
+			n -= v
+		}
+	}
+	return b.String()
+}
+
+func letterNumber(n int, base rune) string {
+	n--
+	var digits []rune
+	for {
+		digits = append(digits, base+rune(n%26))
+		n = n/26 - 1
+		if n < 0 {
+			break
+		}
+	}
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
+	return string(digits)
 }
 
 func pathBaseExt(name string) string {

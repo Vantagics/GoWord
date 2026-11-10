@@ -518,10 +518,12 @@ func (r *docxReader) readNotes(part string, footnotes bool) error {
 			fn := &document.Footnote{ID: id, Elements: elems}
 			r.doc.RegisterFootnote(fn)
 			r.footnotes[id] = fn
+			r.fnDisplay[id] = len(r.fnDisplay) + 1
 		} else {
 			en := &document.Endnote{ID: id, Elements: elems}
 			r.doc.RegisterEndnote(en)
 			r.endnotes[id] = en
+			r.enDisplay[id] = len(r.enDisplay) + 1
 		}
 	}
 }
@@ -653,88 +655,107 @@ func (r *docxReader) applySectPr(sec *document.Section, raw string) {
 	if strings.Contains(raw, "pt\"") || strings.Contains(raw, "in\"") || strings.Contains(raw, "cm\"") {
 		sec.RawSectPr = ""
 	}
+	// Each sectPr stands on its own. A missing w:cols is one column, not a
+	// copy of the previous section's count.
+	sec.Style.ColumnCount = 1
+	parent := ""
 	dec := xml.NewDecoder(strings.NewReader(raw))
 	for {
 		tok, err := dec.Token()
 		if err != nil {
 			return
 		}
-		se, ok := tok.(xml.StartElement)
-		if !ok {
-			continue
-		}
-		switch se.Name.Local {
-		case "pgSz":
-			if n, ok := parseTwips(attrMust(se, "w")); ok {
-				sec.Style.PageWidth = n
+		switch t := tok.(type) {
+		case xml.EndElement:
+			if t.Name.Local == parent {
+				parent = ""
 			}
-			if n, ok := parseTwips(attrMust(se, "h")); ok {
-				sec.Style.PageHeight = n
-			}
-			if v, ok := attr(se, "orient"); ok && v != "" {
-				sec.Style.Orientation = v
-			}
-		case "pgMar":
-			setMar := func(local string, dst *int) {
-				if n, ok := parseTwips(attrMust(se, local)); ok {
-					*dst = n
+		case xml.StartElement:
+			se := t
+			switch se.Name.Local {
+			case "pgSz":
+				if n, ok := parseTwips(attrMust(se, "w")); ok {
+					sec.Style.PageWidth = n
 				}
-			}
-			setMar("top", &sec.Style.MarginTop)
-			setMar("bottom", &sec.Style.MarginBottom)
-			setMar("left", &sec.Style.MarginLeft)
-			setMar("right", &sec.Style.MarginRight)
-			setMar("header", &sec.Style.HeaderHeight)
-			setMar("footer", &sec.Style.FooterHeight)
-			setMar("gutter", &sec.Style.Gutter)
-		case "cols":
-			// A cols element with no num is a single column. Copying the
-			// previous section's count would keep a 2-column section open.
-			sec.Style.ColumnCount = 1
-			if n, err := strconv.Atoi(attrMust(se, "num")); err == nil && n > 0 {
-				sec.Style.ColumnCount = n
-			}
-			if n, ok := parseTwips(attrMust(se, "space")); ok {
-				sec.Style.ColumnSpacing = n
-			}
-		case "type":
-			if v, ok := attr(se, "val"); ok {
-				sec.Style.BreakType = v
-			}
-		case "pgNumType":
-			if v, ok := attr(se, "fmt"); ok {
-				sec.Style.PageNumberFormat = v
-			}
-			if v, ok := attr(se, "start"); ok {
-				if n, err := strconv.Atoi(v); err == nil {
-					sec.Style.PageNumberStart = &n
+				if n, ok := parseTwips(attrMust(se, "h")); ok {
+					sec.Style.PageHeight = n
 				}
-			}
-		case "docGrid":
-			if n, ok := parseTwips(attrMust(se, "linePitch")); ok {
-				sec.Style.LinePitch = n
-			}
-		case "titlePg":
-			sec.Style.TitlePg = onOff(se)
-		case "headerReference":
-			id, _ := attr(se, "id")
-			typ, _ := attr(se, "type")
-			if typ == "" {
-				typ = "default"
-			}
-			target := r.rels[id]
-			if target != "" {
-				sec.Headers = append(sec.Headers, r.loadHeader(target, typ))
-			}
-		case "footerReference":
-			id, _ := attr(se, "id")
-			typ, _ := attr(se, "type")
-			if typ == "" {
-				typ = "default"
-			}
-			target := r.rels[id]
-			if target != "" {
-				sec.Footers = append(sec.Footers, r.loadFooter(target, typ))
+				if v, ok := attr(se, "orient"); ok && v != "" {
+					sec.Style.Orientation = v
+				}
+			case "pgMar":
+				setMar := func(local string, dst *int) {
+					if n, ok := parseTwips(attrMust(se, local)); ok {
+						*dst = n
+					}
+				}
+				setMar("top", &sec.Style.MarginTop)
+				setMar("bottom", &sec.Style.MarginBottom)
+				setMar("left", &sec.Style.MarginLeft)
+				setMar("right", &sec.Style.MarginRight)
+				setMar("header", &sec.Style.HeaderHeight)
+				setMar("footer", &sec.Style.FooterHeight)
+				setMar("gutter", &sec.Style.Gutter)
+			case "cols":
+				// A cols element with no num is a single column. Copying the
+				// previous section's count would keep a 2-column section open.
+				sec.Style.ColumnCount = 1
+				if n, err := strconv.Atoi(attrMust(se, "num")); err == nil && n > 0 {
+					sec.Style.ColumnCount = n
+				}
+				if n, ok := parseTwips(attrMust(se, "space")); ok {
+					sec.Style.ColumnSpacing = n
+				}
+			case "type":
+				if v, ok := attr(se, "val"); ok {
+					sec.Style.BreakType = v
+				}
+			case "pgNumType":
+				if v, ok := attr(se, "fmt"); ok {
+					sec.Style.PageNumberFormat = v
+				}
+				if v, ok := attr(se, "start"); ok {
+					if n, err := strconv.Atoi(v); err == nil {
+						sec.Style.PageNumberStart = &n
+					}
+				}
+			case "docGrid":
+				if n, ok := parseTwips(attrMust(se, "linePitch")); ok {
+					sec.Style.LinePitch = n
+				}
+			case "footnotePr", "endnotePr":
+				parent = se.Name.Local
+			case "numFmt":
+				if v, ok := attr(se, "val"); ok && v != "" {
+					switch parent {
+					case "footnotePr":
+						r.fnNumFmt = v
+					case "endnotePr":
+						r.enNumFmt = v
+					}
+				}
+			case "titlePg":
+				sec.Style.TitlePg = onOff(se)
+			case "headerReference":
+				id, _ := attr(se, "id")
+				typ, _ := attr(se, "type")
+				if typ == "" {
+					typ = "default"
+				}
+				target := r.rels[id]
+				if target != "" {
+					sec.Headers = append(sec.Headers, r.loadHeader(target, typ))
+				}
+			case "footerReference":
+				id, _ := attr(se, "id")
+				typ, _ := attr(se, "type")
+				if typ == "" {
+					typ = "default"
+				}
+				target := r.rels[id]
+				if target != "" {
+					sec.Footers = append(sec.Footers, r.loadFooter(target, typ))
+				}
 			}
 		}
 	}
