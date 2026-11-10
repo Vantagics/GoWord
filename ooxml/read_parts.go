@@ -688,6 +688,9 @@ func (r *docxReader) applySectPr(sec *document.Section, raw string) {
 			setMar("footer", &sec.Style.FooterHeight)
 			setMar("gutter", &sec.Style.Gutter)
 		case "cols":
+			// A cols element with no num is a single column. Copying the
+			// previous section's count would keep a 2-column section open.
+			sec.Style.ColumnCount = 1
 			if n, err := strconv.Atoi(attrMust(se, "num")); err == nil && n > 0 {
 				sec.Style.ColumnCount = n
 			}

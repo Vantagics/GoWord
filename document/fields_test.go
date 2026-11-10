@@ -126,6 +126,41 @@ func TestLayoutUsesFontAndSpacing(t *testing.T) {
 	}
 }
 
+func TestKeepChainBreaksAndSharesAPage(t *testing.T) {
+	doc := New()
+	sec := doc.AddSection()
+	sec.AddText("Normal", nil, nil)
+	base := sec.AddText("Base", nil, nil)
+	base.Style.PageBreakBefore = true
+	base.Style.KeepNext = true
+	cite := sec.AddText("Citation", nil, nil)
+	cite.Style.PageBreakBefore = true
+	lay := doc.EstimateLayout()
+	ps := doc.Paragraphs()
+	if lay.PageCount != 2 {
+		t.Fatalf("pages = %d, want 2", lay.PageCount)
+	}
+	if lay.SheetOf(ps[1]) != 2 || lay.SheetOf(ps[2]) != 2 {
+		t.Fatalf("base sheet %d citation sheet %d", lay.SheetOf(ps[1]), lay.SheetOf(ps[2]))
+	}
+
+	// A chain of keep-with-next headings longer than a page still breaks.
+	long := New()
+	ls := long.AddSection()
+	ls.Style.PageHeight = 4000
+	ls.Style.PageWidth = 8000
+	ls.Style.MarginTop = 200
+	ls.Style.MarginBottom = 200
+	for i := 0; i < 40; i++ {
+		p := ls.AddText("H", nil, nil)
+		p.Style.KeepNext = true
+		p.Style.SpaceBefore = 200
+	}
+	if long.EstimateLayout().PageCount < 2 {
+		t.Fatal("keep chain longer than a page did not break")
+	}
+}
+
 func TestPageBreakLayout(t *testing.T) {
 	doc := New()
 	sec := doc.AddSection()

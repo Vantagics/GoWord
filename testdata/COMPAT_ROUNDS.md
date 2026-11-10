@@ -455,3 +455,47 @@ Harness on 244 non-encrypted packages. Nothing that passed in round 15 regressed
 - `keepNext`, `keepLines`, and widow control are read. Applying keep-with-next to every heading in the Chinese lists pushed an extra heading onto the next sheet and lost the exact 166, so those flags do not move a paragraph by themselves.
 - pandoc still prints equations as TeX and invents image names. POI still glues some table cells.
 
+## Round 17 — keep chains and the one-sheet misses
+
+Each of the ten documents that were one sheet off was looked at on its own. Five of them now match LibreOffice. The Chinese counting lists stay at 166 sheets. A keep-with-next chain taller than a page breaks, so a heading list that sets keep-with-next on every item still paginates one item at a time.
+
+| Document | Before | After | LibreOffice | Cause |
+| --- | --- | --- | --- | --- |
+| `LinkedTextBoxes.docx` | 2 | 1 | 1 | The story is inside page-sized floating frames that share a sheet. It is no longer flowed as body text. |
+| `1-table-1-page.docx` | 2 | 1 | 1 | A 52-row grid was at least 276 twips a row, so it spilled. The row is now the cell's own leading, and a trailing blank line does not open a sheet. |
+| `sty-known-styles.docx` | 3 | 2 | 2 | `Citation` has page-break-before and `Base` has keep-with-next. The break no longer splits that pair. |
+| `Sample_11_ReadWord2007.docx` | 2 | 3 | 3 | The section after the two-column demo has `w:cols` with no `num`, which is one column. The inherited count was squeezing the lists. |
+| `sct-first-page-hdrftr.docx` | 6 | 6 | 6 | Consecutive manual page breaks still open a blank sheet. |
+| `extended-props.docx` | 4 | 4 | 3 | Still one high. A page break follows content that already filled a sheet. LibreOffice drops that sheet; a consecutive-break rule has to keep it in other files. |
+| `alphabeticalIndex_MultipleColumns.docx` | 3 | 3 | 2 | The index is four columns and the prose after it is one column, which is what the file says. The prose is still one sheet long. |
+| `reader.docx` | 3 | 5 | 4 | The same column correction. The lists are no longer squeezed, and the estimate is now one sheet high. |
+| `reader-styles.docx` | 3 | 3 | 4 | Still one short. The styled headings and tables are denser in LibreOffice than these line boxes. |
+| `form_footnotes.docx` | 3 | 3 | 2 | The instruction block at the end falls on sheet 3. LibreOffice fits it on sheet 2. |
+| `DB002-Sections-With-Headers.docx` | 5 | 5 | 4 | About 100 blank paragraphs on the 360-twip grid. LibreOffice fits them on four sheets. |
+| `testWORD_embedded_pics.docx` | 5 | 4 | 5 | Header drawings no longer shrink the body, so the picture story fits on four sheets. |
+
+On the same 44 multi-page documents as round 16: 37 match exactly and all 44 are within one sheet. Round 16 was 34 exact, with 10 one sheet off. Heading text, using the last page where the words appear so a table-of-contents line is not mistaken for the heading, agrees on 63 of 70. The body headings in the TOC samples were already on LibreOffice's sheet; the earlier 56 of 70 counted the contents line.
+
+Two newly added multi-page files, scored apart from that 44: `tdf99140.docx` is exact (2 and 2) and `tdf107889.docx` is one sheet short (2 versus 3). `tdf108496.docx` and `tdf111964.docx` are single-sheet and are not in the multi-page score.
+
+`keepLines` moves a paragraph that fits on a fresh sheet instead of splitting it. Widow and orphan control moves a paragraph when fewer than two lines would remain and the paragraph has at least two lines. Neither fires on the one-line Chinese headings.
+
+### New fixtures
+
+Four LibreOffice export tests (MPL-2.0): `tdf99140.docx`, `tdf107889.docx`, `tdf108496.docx`, and `tdf111964.docx`. All four pass the four reference tools in both directions.
+
+Harness on 248 non-encrypted packages. Nothing that passed in round 16 regressed.
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 240/248 | 244/248 |
+| pandoc | 217/248 | 244/248 |
+| python-docx | 228/248 | 245/248 |
+| Apache POI XWPF | 226/248 | 247/248 |
+
+### Still open
+
+- Seven of the original multi-page documents are still one sheet off. The causes are in the table above. None are further off.
+- `reader.docx` moved from one short to one high when the column count was corrected. `testWORD_embedded_pics.docx` moved from exact to one short when header drawings stopped shrinking the body.
+- Heading sheet agreement is still limited by reading order in the Arabic document and by a few headings that sit on the next sheet.
+

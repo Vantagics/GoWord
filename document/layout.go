@@ -73,8 +73,18 @@ func (d *Document) EstimateLayout() Layout {
 		}
 		cur.applySection(st)
 		cur.reserveChrome(sec)
-		for _, el := range sec.Elements {
+		cur.lastKeep = false
+		for i, el := range sec.Elements {
+			if cur.skipTrailingSpacer(d, sec.Elements, i, &lay) {
+				continue
+			}
+			cur.honorKeep(d, sec.Elements, i)
 			cur.place(d, el, &lay)
+			if p, ok := el.(*Paragraph); ok {
+				cur.lastKeep = d.metricsFor(p).keepNext
+			} else {
+				cur.lastKeep = false
+			}
 		}
 	}
 	cur.placeNotes(d, &lay)
@@ -174,6 +184,10 @@ type pageCursor struct {
 	line           int
 	pitch          int
 	pendingAfter   int
+	lastKeep       bool
+	inTable        bool
+	justBroke      bool
+	placed         bool
 }
 
 func newPageCursor(st styleSection) *pageCursor {
@@ -254,6 +268,8 @@ func (c *pageCursor) addHeight(h int) (displayed, sheet int) {
 		c.advanceColumn()
 	}
 	displayed, sheet = c.page, c.physical
+	c.justBroke = false
+	c.placed = true
 	c.y += h
 	for c.y > c.usableH {
 		over := c.y - c.usableH
@@ -312,18 +328,121 @@ func (c *pageCursor) place(doc *Document, el Element, lay *Layout) {
 	}
 }
 
+// skipTrailingSpacer drops up to three blank lines that would otherwise
+// open a sheet after the real story. A long run of blank lines is content
+// (a section of empty paragraphs) and is paginated normally.
+func (c *pageCursor) skipTrailingSpacer(doc *Document, elems []Element, i int, lay *Layout) bool {
+	p, ok := elems[i].(*Paragraph)
+	if !ok || !p.spacer || doc == nil {
+		return false
+	}
+	after := 0
+	for _, el := range elems[i+1:] {
+		np, ok := el.(*Paragraph)
+		if !ok || !np.spacer {
+			return false
+		}
+		after++
+		if after > 2 {
+			return false
+		}
+	}
+	m := doc.metricsFor(p)
+	h := c.flowHeight(doc, p, m)
+	if c.y == 0 || c.y+h <= c.usableH {
+		return false
+	}
+	lay.paraPage[p] = c.page
+	lay.paraSheet[p] = c.physical
+	return true
+}
+
+// honorKeep applies Word's keep-with-next, keep-lines, and widow/orphan
+// rules before the paragraph is placed. A keep chain taller than a page
+// breaks, which is why a list of headings that all set keepNext still
+// paginates one heading at a time.
+func (c *pageCursor) honorKeep(doc *Document, elems []Element, i int) {
+	p, ok := elems[i].(*Paragraph)
+	if !ok || doc == nil {
+		return
+	}
+	m := doc.metricsFor(p)
+	if m.pageBreak && !c.lastKeep && (c.y > 0 || c.col > 0) {
+		c.advanceSheet()
+	}
+	h := c.flowHeight(doc, p, m)
+	if m.keepLines && h > 0 && h <= c.usableH && c.y > 0 && c.y+h > c.usableH {
+		// Keep lines together: a paragraph that fits on a fresh sheet moves
+		// as a unit instead of splitting.
+		c.advanceColumn()
+		return
+	}
+	if m.widow && c.y > 0 {
+		lh := c.lineBox(m)
+		if lh < 1 {
+			lh = 1
+		}
+		lines := h / lh
+		remain := c.usableH - c.y
+		if lines >= 2 && remain < 2*lh && remain < h && h <= c.usableH {
+			c.advanceColumn()
+			return
+		}
+	}
+	if !m.keepNext || h > c.usableH {
+		return
+	}
+	chain := h
+	for j := i + 1; j < len(elems); j++ {
+		np, ok := elems[j].(*Paragraph)
+		if !ok {
+			break
+		}
+		nm := doc.metricsFor(np)
+		chain += c.flowHeight(doc, np, nm)
+		if chain > c.usableH {
+			// Longer than a page: break the chain and flow normally.
+			return
+		}
+		if !nm.keepNext {
+			break
+		}
+	}
+	if c.y > 0 && c.y+chain > c.usableH {
+		c.advanceColumn()
+	}
+}
+
+func (c *pageCursor) flowHeight(doc *Document, p *Paragraph, m paraMetrics) int {
+	if pageSizedAnchor(p) {
+		return c.lineBox(m)
+	}
+	h := c.paragraphBodyHeight(p, m)
+	if ih := inlineExtra(p); ih > h && strings.TrimSpace(paragraphPlain(p)) == "" {
+		h = ih
+	} else if ih > 0 {
+		h += ih
+	}
+	if m.before > 0 {
+		h += m.before
+	}
+	return h
+}
+
 func (c *pageCursor) placeParagraph(doc *Document, p *Paragraph, lay *Layout) {
 	if paragraphIsPageBreak(p) {
-		c.advanceSheet()
+		// After content that already ended on a sheet boundary, LibreOffice
+		// does not add another blank sheet. Two breaks in a row still do.
+		if !(c.placed && c.y == 0 && c.col == 0 && !c.justBroke) {
+			c.advanceSheet()
+			c.justBroke = true
+		}
 		c.noteBookmarks(p, lay)
 		lay.paraPage[p] = c.page
 		lay.paraSheet[p] = c.physical
 		return
 	}
 	m := doc.metricsFor(p)
-	if m.pageBreak && (c.y > 0 || c.col > 0) {
-		c.advanceSheet()
-	}
 	before := m.before
 	// Drop a small space-before at the top of a page. A heading gap of
 	// half an inch or more still counts, which is what keeps a long list of
@@ -347,8 +466,12 @@ func (c *pageCursor) placeParagraph(doc *Document, p *Paragraph, lay *Layout) {
 	if before > 0 {
 		h += before
 	}
-	if pageSizedAnchor(p) && h > c.usableH {
-		h = c.usableH
+	if pageSizedAnchor(p) {
+		// The story lives in the floating frame, which shares the page.
+		h = c.lineBox(m)
+		if before > 0 && before < h {
+			h += before
+		}
 	}
 	displayed, sheet := c.addHeight(h)
 	c.pendingAfter = m.after
@@ -384,7 +507,10 @@ func (c *pageCursor) placeTable(doc *Document, t *Table, lay *Layout) {
 }
 
 func (c *pageCursor) rowHeight(doc *Document, t *Table, row *Row, fallback int) int {
-	content := c.line
+	prev := c.inTable
+	c.inTable = true
+	defer func() { c.inTable = prev }()
+	content := 0
 	for _, cell := range row.Cells {
 		w := cellWidth(t, cell, fallback)
 		saved := c.colWidth
@@ -397,6 +523,9 @@ func (c *pageCursor) rowHeight(doc *Document, t *Table, row *Row, fallback int) 
 		if ch > content {
 			content = ch
 		}
+	}
+	if content < 120 {
+		content = 120
 	}
 	rh := content
 	switch row.Style.HeightRule {
@@ -520,7 +649,7 @@ type paraMetrics struct {
 }
 
 func (d *Document) metricsFor(p *Paragraph) paraMetrics {
-	m := paraMetrics{size: 11, face: "Calibri"}
+	m := paraMetrics{size: 11, face: "Calibri", widow: true}
 	if d == nil {
 		return m
 	}
@@ -594,6 +723,9 @@ func (d *Document) metricsFor(p *Paragraph) paraMetrics {
 		}
 		if ps.KeepLines {
 			m.keepLines = true
+		}
+		if ps.WidowControl {
+			m.widow = true
 		}
 	}
 	apply(d.defaultPara, style.FontStyle{}, false)
@@ -814,6 +946,15 @@ func (c *pageCursor) lineBox(m paraMetrics) int {
 	// space-before, or a paragraph with no explicit line value, is left at
 	// the font's own leading. Stacking the grid on top of heading spacing
 	// overshoots LibreOffice, and a grid on an unspecified line does too.
+	if c.inTable {
+		// Table rows use the font's own leading. The document grid snap that
+		// body lines use makes a 52-row grid spill onto a second sheet.
+		h = int(size * 24)
+		if h < 200 {
+			h = 200
+		}
+		return h
+	}
 	if c.pitch >= 240 && m.rule != "exact" && m.line > 0 && m.before < 200 && h < c.pitch {
 		h = c.pitch
 	}
@@ -972,14 +1113,21 @@ func chromeHeight(elems []Element) int {
 	for _, el := range elems {
 		switch e := el.(type) {
 		case *Paragraph:
-			if len(e.Runs) > 0 || len(e.Inlines) > 0 {
+			if strings.TrimSpace(paragraphPlain(e)) != "" {
 				h += 240
 			}
-			h += inlineExtra(e)
 		case *Image:
-			h += imageTwips(e)
+			ih := imageTwips(e)
+			if ih > 400 {
+				ih = 400
+			}
+			h += ih
 		case *RawXML:
-			h += drawingTwips(e.XML)
+			dh := drawingTwips(e.XML)
+			if dh > 400 {
+				dh = 400
+			}
+			h += dh
 		case *Table:
 			h += 240 * len(e.Rows)
 		}
