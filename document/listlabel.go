@@ -153,25 +153,52 @@ func legalTraditional(n int) string {
 }
 
 func cjkCounting(n int) string {
-	d := []string{"", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
-	if n <= 0 || n >= 100 {
+	if n <= 0 || n >= 10000 {
 		return strconv.Itoa(n)
 	}
-	if n < 10 {
-		return d[n]
+	d := []string{"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	scales := []struct {
+		div   int
+		label string
+	}{
+		{1000, "千"},
+		{100, "百"},
+		{10, "十"},
 	}
-	if n < 20 {
-		s := "十"
-		if n%10 != 0 {
-			s += d[n%10]
+	var b strings.Builder
+	rest := n
+	started := false
+	needZero := false
+	for _, sc := range scales {
+		q := rest / sc.div
+		rest %= sc.div
+		if q == 0 {
+			if started {
+				needZero = true
+			}
+			continue
 		}
-		return s
+		if needZero {
+			b.WriteString("零")
+			needZero = false
+		}
+		// 10–19 is 十一, not 一十一.
+		if !(sc.div == 10 && q == 1 && !started) {
+			b.WriteString(d[q])
+		}
+		b.WriteString(sc.label)
+		started = true
 	}
-	s := d[n/10] + "十"
-	if n%10 != 0 {
-		s += d[n%10]
+	if rest > 0 {
+		if needZero {
+			b.WriteString("零")
+		}
+		b.WriteString(d[rest])
 	}
-	return s
+	if b.Len() == 0 {
+		return d[0]
+	}
+	return b.String()
 }
 
 func cjkDigital(n int) string {

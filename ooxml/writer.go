@@ -670,8 +670,88 @@ func (w *Writer) relType(relType string) string {
 // wordMLRoot opens a WordprocessingML root element with the namespace set Word
 // writes, including mc:Ignorable for the extension prefixes.
 func (w *Writer) wordMLRoot(tag string) string {
-	return fmt.Sprintf(`<%s xmlns:wpc="%s" xmlns:mc="%s" xmlns:o="%s" xmlns:r="%s" xmlns:m="%s" xmlns:v="%s" xmlns:wp14="%s" xmlns:wp="%s" xmlns:w10="%s" xmlns:w="%s" xmlns:w14="%s" xmlns:w15="%s" xmlns:wpg="%s" xmlns:wpi="%s" xmlns:wne="%s" xmlns:wps="%s" xmlns:a="%s" xmlns:pic="%s" mc:Ignorable="w14 w15 wp14">`,
+	root := fmt.Sprintf(`<%s xmlns:wpc="%s" xmlns:mc="%s" xmlns:o="%s" xmlns:r="%s" xmlns:m="%s" xmlns:v="%s" xmlns:wp14="%s" xmlns:wp="%s" xmlns:w10="%s" xmlns:w="%s" xmlns:w14="%s" xmlns:w15="%s" xmlns:wpg="%s" xmlns:wpi="%s" xmlns:wne="%s" xmlns:wps="%s" xmlns:a="%s" xmlns:pic="%s" mc:Ignorable="w14 w15 wp14">`,
 		tag, nsWPC, nsMC, nsO, w.rNS(), w.mNS(), nsV, nsWP14, w.wpNS(), nsW10, w.wNS(), nsW14, nsW15, nsWPG, nsWPI, nsWNE, nsWPS, nsA, nsPIC)
+	extra := w.inheritedXmlns(root)
+	if extra == "" {
+		return root
+	}
+	return strings.TrimSuffix(root, ">") + extra + ">"
+}
+
+// inheritedXmlns copies namespace declarations from the original document
+// root that this writer does not already emit. Preserved markup such as
+// pt14:Unid is otherwise unbound and the package will not open.
+func (w *Writer) inheritedXmlns(root string) string {
+	if w.doc == nil {
+		return ""
+	}
+	data, ok := w.doc.OriginalPart(w.doc.MainPart())
+	if !ok {
+		return ""
+	}
+	s := string(data)
+	k := strings.Index(s, "<")
+	for k >= 0 && strings.HasPrefix(s[k:], "<?") {
+		end := strings.Index(s[k:], "?>")
+		if end < 0 {
+			return ""
+		}
+		rel := strings.Index(s[k+end+2:], "<")
+		if rel < 0 {
+			return ""
+		}
+		k = k + end + 2 + rel
+	}
+	if k < 0 {
+		return ""
+	}
+	gt := strings.IndexByte(s[k:], '>')
+	if gt < 0 {
+		return ""
+	}
+	start := s[k : k+gt]
+	var b strings.Builder
+	i := 0
+	for {
+		j := strings.Index(start[i:], "xmlns:")
+		if j < 0 {
+			break
+		}
+		j += i
+		rest := start[j+len("xmlns:"):]
+		nameEnd := 0
+		for nameEnd < len(rest) && isNameByte(rest[nameEnd]) {
+			nameEnd++
+		}
+		if nameEnd == 0 || nameEnd >= len(rest) || rest[nameEnd] != '=' {
+			i = j + len("xmlns:")
+			continue
+		}
+		prefix := rest[:nameEnd]
+		q := rest[nameEnd+1:]
+		if q == "" || (q[0] != '"' && q[0] != '\'') {
+			i = j + len("xmlns:")
+			continue
+		}
+		quote := q[0]
+		valEnd := strings.IndexByte(q[1:], quote)
+		if valEnd < 0 {
+			break
+		}
+		decl := start[j : j+len("xmlns:")+nameEnd+1+1+valEnd+1]
+		if !strings.Contains(root, "xmlns:"+prefix+"=") && !strings.Contains(b.String(), "xmlns:"+prefix+"=") {
+			b.WriteByte(' ')
+			b.WriteString(decl)
+		}
+		i = j + len(decl)
+	}
+	return b.String()
+}
+
+func isNameByte(c byte) bool {
+	return c == '_' || c == '-' || c == '.' ||
+		(c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
 }
 
 func (w *Writer) imageFileName(img *document.Image) string {

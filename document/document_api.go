@@ -311,6 +311,9 @@ type ExtractOptions struct {
 	// preceding word, which is what LibreOffice writes) or "separate" (a space
 	// before the number, which is what pandoc's plain text does).
 	NoteAnchor string
+	// IncludeGraphicText appends chart series/category names and SmartArt
+	// labels stored outside w:t. ExtractText leaves this off.
+	IncludeGraphicText bool
 }
 
 // ExtractDefaults is the option set used by ExtractText.
@@ -371,6 +374,11 @@ func (d *Document) ExtractTextWith(opt ExtractOptions) string {
 			for _, elem := range c.Elements {
 				extractElementText(&b, elem, d, ctr, opt)
 			}
+		}
+	}
+	if opt.IncludeGraphicText {
+		if g := d.GraphicText(); g != "" {
+			b.WriteString(g)
 		}
 	}
 	return b.String()

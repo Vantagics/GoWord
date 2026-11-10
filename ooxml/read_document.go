@@ -652,6 +652,12 @@ func noteField(fld *fieldState, kind string) {
 func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *document.Run, sawText bool, extras []document.Element) {
 	inField := fld != nil && fld.active
 	if inField && !fld.inResult {
+		// w:t before a field separator is still document text. Unclosed
+		// fields store ordinary words there; instrText stays in the field.
+		if sawText && run.Text != "" {
+			p.Inlines = append(p.Inlines, run)
+			p.Runs = append(p.Runs, run)
+		}
 		for _, ex := range extras {
 			p.Inlines = append(p.Inlines, ex)
 		}

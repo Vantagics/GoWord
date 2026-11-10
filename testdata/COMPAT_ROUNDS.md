@@ -253,3 +253,35 @@ No file that passed in the previous full run regressed. Every new LibreOffice fi
 - Chart and SmartArt words live in the drawing or the embedded workbook, not in `w:t`. Round-trip keeps those parts; plain-text export of the chart series is empty for LibreOffice as well.
 - docx.js and officegen publish generators, not redistributable `.docx` binaries. Aspose and Syncfusion sample licenses do not allow committing their outputs. Those sources were not added as fixtures.
 
+## Round 12 — revisions, fields, RTL, charts, and diagram text
+
+New sources, both permissive: Open XML PowerTools (MIT) under `testdata/word/powertools/`, and Apache Tika (Apache-2.0) under `testdata/word/tika/`. The set covers formatting revisions (`rPrChange`, `pPrChange`, `tblPrChange`), tracked moves, Arabic and Hebrew, a table of contents and `MERGEFORMAT` fields, sections, content controls, Chinese counting lists, charts, SmartArt, mail merge, altChunk, a macro-enabled document, and a template.
+
+Harness on the whole non-encrypted corpus (198 packages):
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 191/198 | 194/198 |
+| pandoc | 174/198 | 195/198 |
+| python-docx | 180/198 | 195/198 |
+| Apache POI XWPF | 179/198 | 196/198 |
+
+No file that passed in round 11 regressed. The Arabic PowerTools document round-trips: a prefix used only on preserved markup (`xmlns:pt14`) is copied onto the document root, so POI and LibreOffice can open the rewrite.
+
+### Fixed
+
+- `ExtractOptions.IncludeGraphicText` appends chart category and series names and SmartArt labels from `word/charts` and `word/diagrams`. `Document.GraphicText` returns the same text. `ExtractText` stays unchanged, so numeric chart caches and diagram text do not appear unless asked. Duplicate labels that exist in both the diagram data and the drawing are emitted once.
+- Text stored in `w:t` before an unclosed field separator is kept. `testWORD_unclosedFields.docx` now includes `junk`.
+- Chinese counting markers go through 9999 (`十`, `二十一`, `一百零一`, `一千零一十`), which is what the PowerTools Chinese list fixtures use.
+- A 2,000-paragraph document is written and read back in the test suite.
+
+Formatting revisions are preserved: `rPrChange`, `pPrChange`, and `tblPrChange` are still in the rewritten `document.xml`.
+
+### Not defects
+
+- LibreOffice re-evaluates the date field in `CA012-fldSimple.docx` to the day it opens the file (`11/10/26`). The cached result is `4/24/2016`.
+- python-docx and POI delete a soft hyphen, so `optional hyphen` becomes the single token `optionalhyphen`. LibreOffice keeps the soft hyphen and agrees with goword.
+- pandoc prints Windows cache paths as image descriptions in `testWORD_embedded_pics.docx`.
+- POI prints the `NOTEREF` field instruction inside `RP043-MERGEFORMAT-Field-Code.docx` and appends the ruby reading on `testWORD_phonetic.docx`. The default extract is the result and the ruby base.
+- pandoc times out on `.docm` and `.dotx`, and python-docx rejects those content types. LibreOffice and POI read them.
+

@@ -14,6 +14,8 @@ licenses, which are separate from GoWord's license.
 | `openxmlsdk/` | [dotnet/Open-XML-SDK](https://github.com/dotnet/Open-XML-SDK) `test/DocumentFormat.OpenXml.Tests.Assets` | MIT |
 | `libreoffice/` | [LibreOffice](https://github.com/LibreOffice/core) `sw/qa/extras/ooxmlexport/data` and `ooxmlimport/data` | MPL-2.0 |
 | `encrypted/` | Apache POI `test-data/document` and LibreOffice `ooxmlexport/data` encrypted packages | Apache-2.0 and MPL-2.0 |
+| `powertools/` | [OfficeDev/Open-Xml-PowerTools](https://github.com/OfficeDev/Open-Xml-PowerTools) `TestFiles` | MIT |
+| `tika/` | [apache/tika](https://github.com/apache/tika) parser test documents | Apache-2.0 |
 
 `scripts/fetch_word_samples.sh` downloads the same set. The files were produced
 by Microsoft Word or by libraries whose test corpus is Word-generated OOXML,
