@@ -229,62 +229,6 @@ func (d *Document) WatermarkPictureValue() *WatermarkPicture {
 	return d.watermarkPicture
 }
 
-// SetUpdateFieldsOnOpen controls whether fields (TOC, page numbers, etc.)
-// are recalculated when the document is opened.
-// UpdateFields marks the document so Word refreshes fields on open and
-// replaces TOC field results with the current heading text. Page numbers
-// are left for Word; this library does not paginate.
-func (d *Document) UpdateFields() {
-	if d == nil {
-		return
-	}
-	d.SetUpdateFieldsOnOpen(true)
-	var heads []string
-	var walk func([]Element)
-	walk = func(elems []Element) {
-		for _, el := range elems {
-			switch e := el.(type) {
-			case *Paragraph:
-				if headingLevel(e.StyleName) > 0 {
-					if text := paragraphPlain(e); text != "" {
-						heads = append(heads, text)
-					}
-				}
-			case *Sdt:
-				walk(e.Elements)
-			case *Table:
-				for _, row := range e.Rows {
-					for _, cell := range row.Cells {
-						walk(cell.Elements)
-					}
-				}
-			}
-		}
-	}
-	for _, sec := range d.Sections {
-		walk(sec.Elements)
-	}
-	result := strings.Join(heads, "\n")
-	var apply func([]Element)
-	apply = func(elems []Element) {
-		for _, el := range elems {
-			switch e := el.(type) {
-			case *TOC:
-				e.Result = result
-			case *Field:
-				if strings.Contains(strings.ToUpper(e.Instr), "TOC") && result != "" {
-					e.Result = result
-				}
-			case *Sdt:
-				apply(e.Elements)
-			}
-		}
-	}
-	for _, sec := range d.Sections {
-		apply(sec.Elements)
-	}
-}
-
 func headingLevel(name string) int {
 	switch strings.ToLower(name) {
 	case "title":

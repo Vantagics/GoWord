@@ -54,6 +54,7 @@ type Document struct {
 	password       string
 	buildingBlocks []*BuildingBlock
 	embeddedFonts  []EmbeddedFont
+	mergeData      map[string]string
 }
 
 // NumberingStyle defines a custom numbering/list style.

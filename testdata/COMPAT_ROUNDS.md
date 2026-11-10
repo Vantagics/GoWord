@@ -327,3 +327,41 @@ Harness on 223 non-encrypted packages. Nothing that passed in round 12 regressed
 - Footnote ids in `docxjs/footnote.docx` are 2 and 3 because 0 and 1 are the separator notes. LibreOffice displays them as 1 and 2.
 - POI adds `Comment by <author>` and ruby readings. The default extract does not.
 
+## Round 14 — field results and page estimates
+
+`UpdateFields` still sets `w:updateFields` so Word refreshes on open. It now also fills cached results:
+
+- TOC entries are `heading<tab>page`, using `EstimateLayout`.
+- `PAGE`, `NUMPAGES`, and `PAGEREF` use that same estimate. Header and footer `PAGE` fields are left unset, because one cached number cannot be right on every page.
+- `REF` returns the bookmarked text. `SEQ` numbers captions (`SEQ Figure`, `\c` repeats the current value) in Arabic, roman, or alphabetic form.
+- `DATE`, `TIME`, `CREATEDATE`, `PRINTDATE`, and `SAVEDATE` honor a subset of `\@` pictures (`yyyy`, `MMMM`, `dd`, `HH`, `am/pm`, …). `UpdateFieldsAt` pins the clock for tests.
+- `MERGEFIELD` reads `SetMergeData`. `IF` evaluates a comparison, including `IF MERGEFIELD Name = "value" "yes" "no"`.
+
+`EstimateLayout` uses the section page size and margins, a 276-twip line, and about 120 twips per character. Explicit page breaks are exact. Checked against LibreOffice PDF export (`pdftotext` form feeds):
+
+| Document | Estimate | LibreOffice |
+| --- | --- | --- |
+| Two page breaks, heading on the last page | 3 | 3, and the heading is on page 3. The TOC result is `Chapter<tab>3`. |
+| 80 paragraphs of two sentences each | 4 | 3 |
+
+Flowing text was one page high. That is the accuracy of this estimate. It is not Word's line breaking, and `w:updateFields` stays on so Word replaces the cached numbers when it opens the file.
+
+### New fixtures
+
+Eight more files: docxjs text, underlines, page break, and text break (Apache-2.0); LibreOffice TOC field, multi-column index, anchor position, and unsupported text fields (MPL-2.0). Pandoc's docx tests remain GPL and were not added.
+
+Harness on 231 non-encrypted packages. Nothing that passed in round 13 regressed.
+
+| Tool | Read ok | Round-trip ok |
+| --- | --- | --- |
+| LibreOffice | 222/231 | 226/231 |
+| pandoc | 202/231 | 227/231 |
+| python-docx | 210/231 | 227/231 |
+| Apache POI XWPF | 209/231 | 228/231 |
+
+### Still open
+
+- `TOC_field_b.docx` stores the page number in the next run with no space, so the extract is `text1` while the reference tools show `text` and `1` (recall 0.78). Inserting a separator into the stored run changed the round trip, so the cached result is left as it was saved.
+- `anchor-position.docx`: pandoc inserts an image placeholder between `A` and `B`. goword keeps `AB`.
+- Nested fields that were saved only as raw `w:fldChar` markup are not re-executed by `UpdateFields`; it evaluates `Field` values and TOC elements. Word still recalculates them on open.
+
