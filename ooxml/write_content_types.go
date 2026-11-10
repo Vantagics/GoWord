@@ -53,6 +53,9 @@ func (w *Writer) writeContentTypes() error {
 		if ct, ok := standardContentType(f.name); ok {
 			overrides["/"+f.name] = ct
 		}
+		if strings.HasSuffix(strings.ToLower(f.name), ".odttf") {
+			defaults["odttf"] = "application/vnd.openxmlformats-officedocument.obfuscatedFont"
+		}
 		if strings.HasPrefix(f.name, "word/media/") {
 			ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(f.name)), ".")
 			if ext != "" {
@@ -104,6 +107,8 @@ func standardContentType(name string) (string, bool) {
 		return "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml", true
 	case "word/comments.xml":
 		return "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml", true
+	case "word/glossary/document.xml":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml", true
 	case "word/webSettings.xml":
 		return "application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml", true
 	case "word/theme/theme1.xml":

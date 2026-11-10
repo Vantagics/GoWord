@@ -694,10 +694,14 @@ func (r *docxReader) finishRun(p *document.Paragraph, fld *fieldState, run *docu
 		case *document.RawXML:
 			if e.Text != "" {
 				text := e.Text
-				if drawingMarkup(e.XML) && !strings.HasSuffix(text, "\n") {
-					// Separate text boxes so "box" and the next shape's "A"
-					// stay distinct words.
-					text += "\n"
+				if drawingMarkup(e.XML) {
+					// Keep text-box words from gluing onto the paragraph around them.
+					if !strings.HasPrefix(text, "\n") {
+						text = "\n" + text
+					}
+					if !strings.HasSuffix(text, "\n") {
+						text += "\n"
+					}
 				}
 				p.Runs = append(p.Runs, &document.Run{Text: text})
 			}

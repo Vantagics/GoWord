@@ -18,6 +18,10 @@ type TableStyle struct {
 	BorderInsideV    *Border
 	Layout           string // "fixed", "autofit"
 	Indent           int    // Table indent from leading margin in twips
+	// FloatXSpec and FloatYSpec make the table floating (w:tblpPr).
+	// X is "left", "center", or "right". Y is "top", "center", or "bottom".
+	FloatXSpec string
+	FloatYSpec string
 }
 
 // RowStyle represents table row formatting.

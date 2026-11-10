@@ -122,6 +122,8 @@ func (r *docxReader) read() (*document.Document, error) {
 	_ = r.readNotes("word/footnotes.xml", true)
 	_ = r.readNotes("word/endnotes.xml", false)
 	_ = r.readCommentsPart()
+	_ = r.readGlossary()
+	_ = r.readEmbeddedFonts()
 
 	if err := r.readDocument(); err != nil {
 		return nil, err

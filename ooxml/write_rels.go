@@ -42,6 +42,9 @@ func (w *Writer) writeDocRels() error {
 	if w.hasFile("word/comments.xml") || len(w.doc.Comments()) > 0 {
 		w.ensureRel(relComments, "comments.xml")
 	}
+	if w.hasFile("word/glossary/document.xml") || len(w.doc.BuildingBlocks()) > 0 {
+		w.ensureRel(relGlossary, "glossary/document.xml")
+	}
 	return w.writeRelsFile("word/_rels/document.xml.rels", w.docRels)
 }
 

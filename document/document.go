@@ -52,6 +52,8 @@ type Document struct {
 	notesDirty     bool
 	strict         bool
 	password       string
+	buildingBlocks []*BuildingBlock
+	embeddedFonts  []EmbeddedFont
 }
 
 // NumberingStyle defines a custom numbering/list style.

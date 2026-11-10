@@ -39,9 +39,17 @@ func (w *Writer) writeInlineImage(b *strings.Builder, img *document.Image) {
 
 	b.WriteString(`<w:r>`)
 	b.WriteString(`<w:drawing>`)
-	b.WriteString(`<wp:inline distT="0" distB="0" distL="0" distR="0">`)
+	anchorOpen, wrap, floating := drawingAnchor(img.Style.WrappingStyle, img.Style.Alignment)
+	if floating {
+		b.WriteString(anchorOpen)
+	} else {
+		b.WriteString(`<wp:inline distT="0" distB="0" distL="0" distR="0">`)
+	}
 	b.WriteString(fmt.Sprintf(`<wp:extent cx="%d" cy="%d"/>`, cx, cy))
 	b.WriteString(`<wp:effectExtent l="0" t="0" r="0" b="0"/>`)
+	if floating {
+		b.WriteString(wrap)
+	}
 	b.WriteString(fmt.Sprintf(`<wp:docPr id="%d" name="%s"/>`, docID, escapeXML(name)))
 	b.WriteString(`<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`)
 	b.WriteString(`<a:graphic>`)
@@ -53,9 +61,39 @@ func (w *Writer) writeInlineImage(b *strings.Builder, img *document.Image) {
 	b.WriteString(`</pic:pic>`)
 	b.WriteString(`</a:graphicData>`)
 	b.WriteString(`</a:graphic>`)
-	b.WriteString(`</wp:inline>`)
+	if floating {
+		b.WriteString(`</wp:anchor>`)
+	} else {
+		b.WriteString(`</wp:inline>`)
+	}
 	b.WriteString(`</w:drawing>`)
 	b.WriteString(`</w:r>`)
+}
+
+// drawingAnchor returns the wp:anchor opening tag (through positionV) and the
+// wrap element, which belongs after effectExtent. inline stays wp:inline.
+func drawingAnchor(wrapping, align string) (open, wrap string, ok bool) {
+	behind := "0"
+	switch strings.ToLower(wrapping) {
+	case "square":
+		wrap = `<wp:wrapSquare wrapText="bothSides"/>`
+	case "tight":
+		wrap = `<wp:wrapTight wrapText="bothSides"><wp:wrapPolygon><wp:start x="0" y="0"/><wp:line x="0" y="21600"/><wp:line x="21600" y="21600"/><wp:line x="21600" y="0"/></wp:wrapPolygon></wp:wrapTight>`
+	case "topandbottom", "topAndBottom":
+		wrap = `<wp:wrapTopAndBottom/>`
+	case "behind":
+		behind = "1"
+		wrap = `<wp:wrapNone/>`
+	case "infrontof", "infront", "inFrontOf":
+		wrap = `<wp:wrapNone/>`
+	default:
+		return "", "", false
+	}
+	if align == "" {
+		align = "left"
+	}
+	open = fmt.Sprintf(`<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="%s" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:align>%s</wp:align></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>`, behind, escapeXML(align))
+	return open, wrap, true
 }
 
 func (w *Writer) writeTable(b *strings.Builder, t *document.Table) {
@@ -70,6 +108,16 @@ func (w *Writer) writeTable(b *strings.Builder, t *document.Table) {
 		ts := &t.Style
 		if t.StyleName != "" {
 			b.WriteString(fmt.Sprintf(`<w:tblStyle w:val="%s"/>`, escapeXML(t.StyleName)))
+		}
+		if ts.FloatXSpec != "" || ts.FloatYSpec != "" {
+			x, y := ts.FloatXSpec, ts.FloatYSpec
+			if x == "" {
+				x = "left"
+			}
+			if y == "" {
+				y = "top"
+			}
+			b.WriteString(fmt.Sprintf(`<w:tblpPr w:horzAnchor="margin" w:vertAnchor="text" w:tblpXSpec="%s" w:tblpYSpec="%s"/>`, escapeXML(x), escapeXML(y)))
 		}
 		if ts.Width > 0 {
 			wType := ts.WidthType

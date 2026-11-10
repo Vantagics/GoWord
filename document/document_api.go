@@ -231,6 +231,95 @@ func (d *Document) WatermarkPictureValue() *WatermarkPicture {
 
 // SetUpdateFieldsOnOpen controls whether fields (TOC, page numbers, etc.)
 // are recalculated when the document is opened.
+// UpdateFields marks the document so Word refreshes fields on open and
+// replaces TOC field results with the current heading text. Page numbers
+// are left for Word; this library does not paginate.
+func (d *Document) UpdateFields() {
+	if d == nil {
+		return
+	}
+	d.SetUpdateFieldsOnOpen(true)
+	var heads []string
+	var walk func([]Element)
+	walk = func(elems []Element) {
+		for _, el := range elems {
+			switch e := el.(type) {
+			case *Paragraph:
+				if headingLevel(e.StyleName) > 0 {
+					if text := paragraphPlain(e); text != "" {
+						heads = append(heads, text)
+					}
+				}
+			case *Sdt:
+				walk(e.Elements)
+			case *Table:
+				for _, row := range e.Rows {
+					for _, cell := range row.Cells {
+						walk(cell.Elements)
+					}
+				}
+			}
+		}
+	}
+	for _, sec := range d.Sections {
+		walk(sec.Elements)
+	}
+	result := strings.Join(heads, "\n")
+	var apply func([]Element)
+	apply = func(elems []Element) {
+		for _, el := range elems {
+			switch e := el.(type) {
+			case *TOC:
+				e.Result = result
+			case *Field:
+				if strings.Contains(strings.ToUpper(e.Instr), "TOC") && result != "" {
+					e.Result = result
+				}
+			case *Sdt:
+				apply(e.Elements)
+			}
+		}
+	}
+	for _, sec := range d.Sections {
+		apply(sec.Elements)
+	}
+}
+
+func headingLevel(name string) int {
+	switch strings.ToLower(name) {
+	case "title":
+		return 1
+	case "heading1", "heading 1", "1":
+		return 1
+	case "heading2", "heading 2", "2":
+		return 2
+	case "heading3", "heading 3", "3":
+		return 3
+	case "heading4", "heading 4":
+		return 4
+	case "heading5", "heading 5":
+		return 5
+	case "heading6", "heading 6":
+		return 6
+	case "heading7":
+		return 7
+	case "heading8":
+		return 8
+	case "heading9":
+		return 9
+	default:
+		return 0
+	}
+}
+
+func paragraphPlain(p *Paragraph) string {
+	var b strings.Builder
+	for _, r := range p.Runs {
+		b.WriteString(r.Text)
+	}
+	return strings.TrimSpace(b.String())
+}
+
 func (d *Document) SetUpdateFieldsOnOpen(b bool) {
 	d.updateFieldsOnOpen = b
 	if !d.loading {

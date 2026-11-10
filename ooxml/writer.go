@@ -49,6 +49,8 @@ const (
 	relComments    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 	relTheme       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 	relWebSettings = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings"
+	relGlossary    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument"
+	relFont        = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font"
 
 	nsM    = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 	nsO    = "urn:schemas-microsoft-com:office:office"
@@ -238,6 +240,9 @@ func (w *Writer) write() error {
 	}
 	// 12. word/fontTable.xml when the package does not already have one
 	if err := w.writeFontTable(); err != nil {
+		return err
+	}
+	if err := w.writeGlossary(); err != nil {
 		return err
 	}
 	// 13. Header/footer parts

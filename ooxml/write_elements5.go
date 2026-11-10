@@ -225,7 +225,18 @@ func (w *Writer) writeTOC(b *strings.Builder, toc *document.TOC) {
 	b.WriteString(`<w:r><w:fldChar w:fldCharType="begin"/></w:r>`)
 	b.WriteString(fmt.Sprintf(`<w:r><w:instrText xml:space="preserve"> TOC \o "%d-%d" \h \z \u </w:instrText></w:r>`, minD, maxD))
 	b.WriteString(`<w:r><w:fldChar w:fldCharType="separate"/></w:r>`)
-	b.WriteString(`<w:r><w:t>Table of Contents (right-click to update)</w:t></w:r>`)
+	result := toc.Result
+	if result == "" {
+		result = "Table of Contents (right-click to update)"
+	}
+	for i, line := range strings.Split(result, "\n") {
+		if i > 0 {
+			b.WriteString(`</w:p><w:p>`)
+		}
+		b.WriteString(`<w:r><w:t>`)
+		b.WriteString(escapeXML(line))
+		b.WriteString(`</w:t></w:r>`)
+	}
 	b.WriteString(`<w:r><w:fldChar w:fldCharType="end"/></w:r>`)
 	b.WriteString(`</w:p>`)
 }

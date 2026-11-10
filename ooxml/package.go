@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/VantageDataChat/GoWord/document"
 )
 
 func (w *Writer) copyOriginalParts() {
@@ -95,8 +97,22 @@ func relNumber(id string) int {
 }
 
 func (w *Writer) writeFontTable() error {
-	if w.hasFile("word/fontTable.xml") {
+	var fresh []document.EmbeddedFont
+	for _, ef := range w.doc.EmbeddedFonts() {
+		if !ef.Stored {
+			fresh = append(fresh, ef)
+		}
+	}
+	if len(fresh) == 0 && w.hasFile("word/fontTable.xml") {
 		return nil
+	}
+	if len(fresh) > 0 {
+		if err := w.writeEmbeddedFonts(fresh); err != nil {
+			return err
+		}
+		if w.hasFile("word/fontTable.xml") {
+			return nil
+		}
 	}
 	fonts := map[string]struct{}{}
 	if w.doc.DefaultFont.Name != "" {
@@ -127,4 +143,63 @@ func (w *Writer) writeFontTable() error {
 	}
 	b.WriteString(`</w:fonts>`)
 	return w.addZipFile("word/fontTable.xml", []byte(b.String()))
+}
+
+func (w *Writer) writeEmbeddedFonts(embeds []document.EmbeddedFont) error {
+	var rels []relationship
+	var fonts strings.Builder
+	for i, ef := range embeds {
+		id := fmt.Sprintf("rId%d", i+1)
+		target := fmt.Sprintf("fonts/font%d.odttf", i+1)
+		fonts.WriteString(fmt.Sprintf(`<w:font w:name="%s"><w:embedRegular r:id="%s" w:fontKey="%s"/></w:font>`, escapeXML(ef.Name), id, escapeXML(ef.Key)))
+		obf, err := document.ObfuscateFont(ef.Key, ef.Data)
+		if err != nil {
+			return err
+		}
+		if err := w.addZipFile("word/"+target, obf); err != nil {
+			return err
+		}
+		rels = append(rels, relationship{ID: id, Type: relFont, Target: target})
+	}
+	var table string
+	if data, ok := w.doc.OriginalPart("word/fontTable.xml"); ok && bytes.Contains(data, []byte("</w:fonts>")) {
+		s := string(data)
+		cut := strings.LastIndex(s, "</w:fonts>")
+		table = s[:cut] + fonts.String() + "</w:fonts>"
+	} else {
+		var b strings.Builder
+		b.WriteString(xmlHeader())
+		b.WriteString(fmt.Sprintf(`<w:fonts xmlns:w="%s" xmlns:r="%s">`, w.wNS(), w.rNS()))
+		b.WriteString(fonts.String())
+		b.WriteString(`</w:fonts>`)
+		table = b.String()
+	}
+	if err := w.addZipFile("word/fontTable.xml", []byte(table)); err != nil {
+		return err
+	}
+	return w.writeRelsFile("word/_rels/fontTable.xml.rels", rels)
+}
+
+func (w *Writer) writeGlossary() error {
+	blocks := w.doc.BuildingBlocks()
+	if len(blocks) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString(xmlHeader())
+	b.WriteString(w.wordMLRoot("w:glossaryDocument"))
+	b.WriteString(`<w:docParts>`)
+	for _, bb := range blocks {
+		b.WriteString(`<w:docPart><w:docPartPr>`)
+		b.WriteString(fmt.Sprintf(`<w:name w:val="%s"/>`, escapeXML(bb.Name)))
+		if bb.Style != "" {
+			b.WriteString(fmt.Sprintf(`<w:style w:val="%s"/>`, escapeXML(bb.Style)))
+		}
+		b.WriteString(`<w:category><w:name w:val="General"/><w:gallery w:val="auto"/></w:category>`)
+		b.WriteString(`</w:docPartPr><w:docPartBody><w:p><w:r><w:t>`)
+		b.WriteString(escapeXML(bb.Text))
+		b.WriteString(`</w:t></w:r></w:p></w:docPartBody></w:docPart>`)
+	}
+	b.WriteString(`</w:docParts></w:glossaryDocument>`)
+	return w.addZipFile("word/glossary/document.xml", []byte(b.String()))
 }

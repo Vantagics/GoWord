@@ -233,6 +233,8 @@ type TOC struct {
 	MaxDepth  int
 	TabLeader string // "dot", "hyphen", "underscore", "none"
 	TabPos    int    // Tab position in twips
+	// Result is the cached TOC text. UpdateFields fills it from headings.
+	Result string
 }
 
 // CheckBox represents a checkbox form field.
